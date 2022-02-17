@@ -1,0 +1,88 @@
+<Project>
+
+  <!-- Configuration; can be set up in the project. -->
+  <PropertyGroup>
+
+    <!-- The directories to search for the dependencies of the output assemblies. -->
+    <ApiReferenceLibraryPath Condition=" '$(ApiReferenceLibraryPath)' == '' " />
+
+    <!-- The directory to use for the API reference sources. -->
+    <ApiReferenceOutputDir Condition=" '$(ApiReferenceOutputDir)' == '' ">$(TargetDir)</ApiReferenceOutputDir>
+
+    <!-- The extension to use for the API reference sources. -->
+    <ApiReferenceOutputExt Condition=" '$(ApiReferenceOutputExt)' == '' ">.cs</ApiReferenceOutputExt>
+
+    <!-- The file to use for the API reference sources. -->
+    <ApiReferenceOutputPath Condition=" '$(ApiReferenceOutputPath)' == '' ">$([MSBuild]::EnsureTrailingSlash('$(ApiReferenceOutputDir)'))$(TargetName)$(ApiReferenceOutputExt)</ApiReferenceOutputPath>
+
+    <!-- Detetermines whether or not API reference sources should be generated. -->
+    <GenerateApiReference Condition=" '$(GenerateApiReference)' == '' ">true</GenerateApiReference>
+
+    <!-- The program needed to run Mono executables. -->
+    <MonoRunner Condition=" '$(MonoRunner)' == '' ">mono --runtime=v4.0.30319</MonoRunner>
+
+    <!-- The program needed to run .NET Core executables. -->
+    <NetCoreRunner Condition=" '$(NetCoreRunner)' == '' ">dotnet</NetCoreRunner>
+
+    <!-- If set to true, the output files are not registered in @(FileWrites). -->
+    <SkipApiReferenceOutputPathFileWrite Condition=" '$(SkipApiReferenceOutputPathFileWrite)' == '' ">false</SkipApiReferenceOutputPathFileWrite>
+
+  </PropertyGroup>
+
+  <!-- Derived Properties -->
+  <PropertyGroup>
+
+    <_ApiReferenceGenerator Condition=" '$(MSBuildRuntimeType)' == 'Core' ">$(MSBuildThisFileDirectory)..\tools\netcoreapp3.1\Zastai.Build.ApiReference.dll</_ApiReferenceGenerator>
+    <_ApiReferenceGenerator Condition=" '$(MSBuildRuntimeType)' != 'Core' ">$(MSBuildThisFileDirectory)..\tools\net472\Zastai.Build.ApiReference.exe</_ApiReferenceGenerator>
+
+    <_ApiReferenceGeneratorCommandLine Condition=" '$(MSBuildRuntimeType)' == 'Core'                             ">$(NetCoreRunner) "$(_ApiReferenceGenerator)"</_ApiReferenceGeneratorCommandLine>
+    <_ApiReferenceGeneratorCommandLine Condition=" '$(MSBuildRuntimeType)' != 'Core' And '$(OS)' == 'Windows_NT' ">"$(_ApiReferenceGenerator)"</_ApiReferenceGeneratorCommandLine>
+    <_ApiReferenceGeneratorCommandLine Condition=" '$(MSBuildRuntimeType)' != 'Core' And '$(OS)' != 'Windows_NT' ">$(MonoRunner) "$(_ApiReferenceGenerator)"</_ApiReferenceGeneratorCommandLine>
+
+  </PropertyGroup>
+
+  <!-- Hook into the regular build process at a time when all our inputs are available. -->
+  <PropertyGroup Condition=" '$(GenerateApiReference)' == 'true' ">
+    <PrepareForRunDependsOn>$(PrepareForRunDependsOn);GenerateApiReference</PrepareForRunDependsOn>
+  </PropertyGroup>
+
+  <Target Name="_DoNotBuildProjectReferences">
+    <PropertyGroup>
+      <BuildProjectReferences>false</BuildProjectReferences>
+    </PropertyGroup>
+  </Target>
+
+  <Target Name="GenerateApiReference" Inputs="@(IntermediateAssembly)" Outputs="$(ApiReferenceOutputPath)"
+          DependsOnTargets="_DoNotBuildProjectReferences;ResolveAssemblyReferences">
+
+    <!-- Reference Path Configured: Use. -->
+    <ItemGroup Condition=" '$(ApiReferenceLibraryPath)' != '' ">
+      <_ConfiguredDirectoriesContainingReferencedAssemblies Include="$(ApiReferenceLibraryPath)" />
+      <_AllDirectoriesContainingReferencedAssemblies Include="@(_ConfiguredDirectoriesContainingReferencedAssemblies->TrimEnd('\'))" />
+    </ItemGroup>
+
+    <!-- Reference Path NOT Configured: Use the references computed by the build. -->
+    <ItemGroup Condition=" '$(ApiReferenceLibraryPath)' == '' ">
+      <_AllDirectoriesContainingReferencedAssemblies Include="@(ReferencePath->'%(RootDir)%(Directory)'->TrimEnd('\'))" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <!-- Remove duplicates and retain only the names. -->
+      <_DirectoriesContainingReferencedAssemblies Include="%(_AllDirectoriesContainingReferencedAssemblies.Identity)" />
+      <!-- Turn into command-line options. -->
+      <_ApiReferenceCommandLineOptions Include="-r &quot;%(_DirectoriesContainingReferencedAssemblies.Identity)&quot;" />
+    </ItemGroup>
+
+    <MakeDir Directories="$([System.IO.Path]::GetDirectoryName($([System.IO.Path]::GetFullPath('$(ApiReferenceOutputPath)'))))" />
+
+    <Exec Command="$(_ApiReferenceGeneratorCommandLine) &quot;$(IntermediateOutputPath)$(TargetName)$(TargetExt)&quot; &quot;$(ApiReferenceOutputPath)&quot; @(_ApiReferenceCommandLineOptions, ' ')" />
+
+    <ItemGroup>
+      <FileWrites Condition=" '$(SkipApiReferenceOutputPathFileWrite)' != 'true' " Include="$(ApiReferenceOutputPath) "/>
+    </ItemGroup>
+
+    <Message Text="Generated API Reference: $(ApiReferenceOutputPath)" Importance="high" />
+
+  </Target>
+
+</Project>
