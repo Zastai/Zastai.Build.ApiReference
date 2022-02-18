@@ -1022,15 +1022,11 @@ internal static class CodeGeneration {
       writer.Write('.');
     }
     var name = tr.Name;
+    // Strip off the part after a backtick. This used to assert that only generic types have a backtick, but non-generic nested
+    // types inside a generic type can be generic while not themselves having a backtick.
     var backTick = name.IndexOf('`');
     if (backTick >= 0) {
-      Trace.Assert(tr.HasGenericParameters || tr.IsGenericInstance,
-                   $"Type {tr} is not generic but has a name containing a backtick ({name}).");
       name = name.Substring(0, backTick);
-    }
-    else {
-      Trace.Assert(!tr.HasGenericParameters && !tr.IsGenericInstance,
-                   $"Type {tr} is generic but does not have a name containing a backtick.");
     }
     writer.Write(name);
     writer.WriteGenericParameters(tr);
