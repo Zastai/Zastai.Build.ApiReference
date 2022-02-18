@@ -464,7 +464,7 @@ internal static class CodeGeneration {
     if (md.IsRuntimeSpecialName) {
       // Runtime-Special Names
       if (md.Name is ".ctor" or ".cctor") {
-        writer.WriteTypeName(md.DeclaringType, false, true);
+        writer.WriteTypeName(md.DeclaringType, md.DeclaringType.Namespace, false, true);
       }
       else {
         writer.Write("/* TODO: Map RunTime-Special Method Name Correctly */ ");
@@ -639,7 +639,7 @@ internal static class CodeGeneration {
       return;
     }
     foreach (var type in nestedTypes) {
-      writer.WriteType(type.Value, indent);
+      writer.WriteType(type.Value, null, indent);
     }
   }
 
@@ -832,14 +832,14 @@ internal static class CodeGeneration {
       writer.Write(ns.Key);
       writer.WriteLine(" {");
       foreach (var type in ns.Value) {
-        writer.WriteType(type.Value, 2);
+        writer.WriteType(type.Value, ns.Key, 2);
       }
       writer.WriteLine();
       writer.WriteLine('}');
     }
   }
 
-  private static void WriteType(this TextWriter writer, TypeDefinition td, int indent = 0) {
+  private static void WriteType(this TextWriter writer, TypeDefinition td, string? ns = null, int indent = 0) {
     writer.WriteLine();
     writer.WriteCustomAttributes(td, indent);
     Trace.Assert(td.IsPublicApi(), $"Type {td} has unsupported access: {td.Attributes}.");
@@ -862,7 +862,7 @@ internal static class CodeGeneration {
       Trace.Fail($"Type {td} has unsupported classification: {td.Attributes}.");
     }
     writer.Write(' ');
-    writer.WriteTypeName(td, false);
+    writer.WriteTypeName(td, ns, false);
     {
       var isDerived = false;
       var baseType = td.BaseType;
@@ -924,7 +924,7 @@ internal static class CodeGeneration {
     writer.WriteLine('}');
   }
 
-  private static void WriteTypeName(this TextWriter writer, TypeReference tr, bool includeDeclaringType = true,
+  private static void WriteTypeName(this TextWriter writer, TypeReference tr, string? ns = null, bool includeDeclaringType = true,
                                     bool omitRefKeyword = false) {
     // Check for pass-by-reference and make it ref T
     if (tr.IsByReference) {
@@ -935,13 +935,13 @@ internal static class CodeGeneration {
     }
     // Check for arrays and make them T[]
     if (tr.IsArray) {
-      writer.WriteTypeName(tr.GetElementType(), includeDeclaringType);
+      writer.WriteTypeName(tr.GetElementType(), ns, includeDeclaringType);
       writer.Write("[]");
       return;
     }
     // Check for System.Nullable<T> and make it T?
     if (tr.TryUnwrapNullable(out var unwrapped)) {
-      writer.WriteTypeName(unwrapped, includeDeclaringType);
+      writer.WriteTypeName(unwrapped, ns, includeDeclaringType);
       writer.Write('?');
       return;
     }
@@ -1014,10 +1014,10 @@ internal static class CodeGeneration {
     }
     // Otherwise, full stringification.
     if (tr.IsNested && includeDeclaringType) {
-      writer.WriteTypeName(tr.DeclaringType, includeDeclaringType);
+      writer.WriteTypeName(tr.DeclaringType, ns, includeDeclaringType);
       writer.Write('.');
     }
-    else if (!string.IsNullOrEmpty(tr.Namespace)) {
+    else if (!string.IsNullOrEmpty(tr.Namespace) && (ns == null || ns != tr.Namespace)) {
       writer.Write(tr.Namespace);
       writer.Write('.');
     }
