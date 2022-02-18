@@ -216,7 +216,7 @@ internal static class CodeGeneration {
     if (!md.HasCustomAttributes) {
       return;
     }
-    writer.WriteLine($"Module: {md.Name}");
+    writer.WriteLine($"// Module: {md.Name}");
     writer.WriteCustomAttributes(md.CustomAttributes, "module", indent);
   }
 
