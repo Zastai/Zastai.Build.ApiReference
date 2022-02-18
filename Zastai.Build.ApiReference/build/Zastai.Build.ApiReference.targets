@@ -12,10 +12,13 @@
     <!-- The extension to use for the API reference sources. -->
     <ApiReferenceOutputExt Condition=" '$(ApiReferenceOutputExt)' == '' ">.cs</ApiReferenceOutputExt>
 
-    <!-- The file to use for the API reference sources. -->
+    <!-- The full path to the file to use for the API reference sources. -->
     <ApiReferenceOutputPath Condition=" '$(ApiReferenceOutputPath)' == '' ">$([MSBuild]::EnsureTrailingSlash('$(ApiReferenceOutputDir)'))$(TargetName)$(ApiReferenceOutputExt)</ApiReferenceOutputPath>
 
-    <!-- Detetermines whether or not API reference sources should be generated. -->
+    <!-- Detetermines whether the folder used for API reference sources should be created by the build. -->
+    <CreateApiReferenceOutputDir Condition=" '$(CreateApiReferenceOutputDir)' == '' ">false</CreateApiReferenceOutputDir>
+
+    <!-- Detetermines whether API reference sources should be generated. -->
     <GenerateApiReference Condition=" '$(GenerateApiReference)' == '' ">true</GenerateApiReference>
 
     <!-- The program needed to run Mono executables. -->
@@ -73,7 +76,8 @@
       <_ApiReferenceCommandLineOptions Include="-r &quot;%(_DirectoriesContainingReferencedAssemblies.Identity)&quot;" />
     </ItemGroup>
 
-    <MakeDir Directories="$([System.IO.Path]::GetDirectoryName($([System.IO.Path]::GetFullPath('$(ApiReferenceOutputPath)'))))" />
+    <MakeDir Directories="$([System.IO.Path]::GetDirectoryName($([System.IO.Path]::GetFullPath('$(ApiReferenceOutputPath)'))))"
+             Condition=" '$(CreateApiReferenceOutputDir)' == 'true' "/>
 
     <Exec Command="$(_ApiReferenceGeneratorCommandLine) &quot;$(IntermediateOutputPath)$(TargetName)$(TargetExt)&quot; &quot;$(ApiReferenceOutputPath)&quot; @(_ApiReferenceCommandLineOptions, ' ')" />
 
