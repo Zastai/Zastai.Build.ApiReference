@@ -1,5 +1,5 @@
 ﻿using System.Diagnostics;
-using System.Runtime.CompilerServices;
+using System.Text;
 
 using ICustomAttributeProvider = Mono.Cecil.ICustomAttributeProvider;
 
@@ -408,8 +408,52 @@ internal static class CodeGeneration {
 
   private static void WriteLiteral(this TextWriter writer, bool b) => writer.Write(b ? "true" : "false");
 
-  private static void WriteLiteral(this TextWriter writer, string s)
-    => writer.Write("\"{0}\"", s.Replace("\\", "\\\\").Replace("\"", "\\\""));
+  private static void WriteLiteral(this TextWriter writer, string s) {
+    var sb = new StringBuilder();
+    sb.Append('"');
+    foreach (var c in s) {
+      switch (c) {
+        case '\0':
+          sb.Append("\\0");
+          break;
+        case '\\':
+          sb.Append("\\\\");
+          break;
+        case '\"':
+          sb.Append("\\\"");
+          break;
+        case '\a':
+          sb.Append("\\a");
+          break;
+        case '\b':
+          sb.Append("\\b");
+          break;
+        case '\f':
+          sb.Append("\\f");
+          break;
+        case '\n':
+          sb.Append("\\n");
+          break;
+        case '\r':
+          sb.Append("\\r");
+          break;
+        case '\v':
+          sb.Append("\\v");
+          break;
+        default:
+          if (char.IsControl(c)) {
+            var codePoint = (int) c;
+            sb.Append(c > 0xff ? $"\\u{codePoint:x4}" : $"\\x{codePoint:x2}");
+          }
+          else {
+            sb.Append(c);
+          }
+          break;
+      }
+    }
+    sb.Append('"');
+    writer.Write(sb.ToString());
+  }
 
   private static void WriteMethod(this TextWriter writer, MethodDefinition md, int indent = 0) {
     writer.WriteCustomAttributes(md, indent);
