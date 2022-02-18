@@ -1,6 +1,5 @@
 ﻿using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
-using System.Linq;
+using System.Runtime.CompilerServices;
 
 using ICustomAttributeProvider = Mono.Cecil.ICustomAttributeProvider;
 
@@ -9,101 +8,6 @@ namespace Zastai.Build.ApiReference;
 internal static class CodeGeneration {
 
   private static char[]? _indentationSpaces;
-
-  private static bool IsCompilerGenerated(this TypeReference tr) {
-    var td = tr.Resolve();
-    if (!td.HasCustomAttributes) {
-      return false;
-    }
-    foreach (var ca in td.CustomAttributes) {
-      if (ca.AttributeType.IsCoreLibraryType("System.Runtime.CompilerServices", "CompilerGeneratedAttribute")) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  private static bool IsCoreLibraryType(this TypeReference tr) => tr.Scope == tr.Module.TypeSystem.CoreLibrary;
-
-  private static bool IsCoreLibraryType(this TypeReference tr, string? ns, string name)
-    => tr.IsCoreLibraryType() && tr.Namespace == ns && tr.Name == name;
-
-  private static bool IsParamArray(this ParameterDefinition pd)
-    => pd.HasCustomAttributes && pd.CustomAttributes.Any(ca => ca.AttributeType.IsCoreLibraryType("System", "ParamArrayAttribute"));
-
-  // FIXME: Can the remove method differ? Does it matter?
-  private static bool IsPublicApi(this EventDefinition ed) => ed.AddMethod.IsPublicApi();
-
-  private static bool IsPublicApi(this FieldDefinition fd) => fd.IsPublic || fd.IsFamily || fd.IsFamilyOrAssembly;
-
-  private static bool IsPublicApi(this ICustomAttribute ca) {
-    var attributeType = ca.AttributeType;
-    if (attributeType.Scope == attributeType.Module.TypeSystem.CoreLibrary) {
-      switch (attributeType.Namespace) {
-        case "System":
-          switch (attributeType.Name) {
-            case "ParamArrayAttribute":
-              // This is handled as part of parameter attribute handling
-              return false;
-          }
-          break;
-        case "System.Diagnostics":
-          switch (attributeType.Name) {
-            case "DebuggableAttribute":
-            case "DebuggerStepThroughAttribute":
-              // Not relevant to API
-              return false;
-          }
-          break;
-        case "System.Reflection":
-          if (attributeType.Name.StartsWith("Assembly")) {
-            return false;
-          }
-          break;
-        case "System.Runtime.CompilerServices":
-          switch (attributeType.Name) {
-            case "AsyncStateMachineAttribute":
-            case "CompilationRelaxationsAttribute":
-            case "RuntimeCompatibilityAttribute":
-              // Not relevant to API
-              return false;
-            case "ExtensionAttribute":
-              // This is handled as part of method signature handling; we don't care about its presence on assemblies/classes
-              return false;
-          }
-          break;
-      }
-    }
-    else if (attributeType.IsCompilerGenerated()) {
-      // Assume compiler-generated attributes are never relevant to API.
-      // This includes [Nullable], [NullableContext] and [NullablePublicOnly]; the compiler emits those inside the assembly - it is
-      // not a framework type. (Which allows it to work for assemblies targeting older framework versions.)
-      return false;
-    }
-    // Assume public API by default.
-    return true;
-  }
-
-  private static bool IsPublicApi(this MethodDefinition md) => md.IsPublic || md.IsFamily || md.IsFamilyOrAssembly;
-
-  private static bool IsPublicApi(this TypeDefinition td)
-    => td.IsPublic || td.IsNestedPublic || td.IsNestedFamily || td.IsNestedFamilyOrAssembly;
-
-  private static ulong ToULong(this object value) => value is ulong u64 ? u64 : (ulong) Convert.ToInt64(value);
-
-  private static bool TryUnwrapNullable(this TypeReference tr, [NotNullWhen(true)] out TypeReference? unwrapped) {
-    if (tr.Scope == tr.Module.TypeSystem.CoreLibrary) {
-      if (tr.IsGenericInstance && tr.Namespace == "System" && tr.Name == "Nullable`1") {
-        var gi = (IGenericInstance) tr;
-        Trace.Assert(gi.HasGenericArguments && gi.GenericArguments.Count == 1,
-                     "Nullable type instance does not have exactly one generic argument.");
-        unwrapped = gi.GenericArguments[0];
-        return true;
-      }
-    }
-    unwrapped = null;
-    return false;
-  }
 
   private static void WriteAttributes(this TextWriter writer, FieldDefinition fd) {
     if (fd.IsPublic) {
