@@ -1,4 +1,4 @@
-using System.Text;
+using System.Reflection;
 
 namespace Zastai.Build.ApiReference;
 
@@ -50,25 +50,45 @@ public static class Program {
       return 3;
     }
 
+    using var reference = referenceSource == "-" ? Console.Out : new StreamWriter(File.Create(referenceSource), Encoding.UTF8);
+
+    ReferenceWriter? writer = null;
     var dependencyPath = new List<string>();
     for (var i = 2; i < args.Length; i += 2) {
-      if (args[i] != "-r") {
-        return Program.Usage(4);
+      switch (args[i]) {
+        case "-f":
+          switch (args[i + 1].ToLowerInvariant()) {
+            case "c#":
+            case "cs":
+            case "csharp":
+              writer = new CSharpWriter(reference);
+              break;
+            default:
+              Console.Error.WriteLine("Unsupported output format: {0}", args[i + 1]);
+              return 4;
+          }
+          break;
+        case "-r":
+          dependencyPath.Add(args[i + 1]);
+          break;
+        default:
+          return Program.Usage(4);
       }
-      dependencyPath.Add(args[i + 1]);
     }
 
-    using var reference = referenceSource == "-" ? Console.Out : new StreamWriter(File.Create(referenceSource), Encoding.UTF8);
+    // Default to C#
+    writer ??= new CSharpWriter(reference);
+
     using var ad = AssemblyDefinition.ReadAssembly(assembly, Program.CreateReaderParameters(assembly, dependencyPath));
 
-    reference.WritePublicApi(ad);
+    writer.WritePublicApi(ad);
 
     return 0;
   }
 
   private static int Usage(int rc = 1) {
     var programName = Assembly.GetExecutingAssembly().GetName().Name;
-    Console.Out.WriteLine("Usage: {0} ASSEMBLY OUTPUT-FILE [-r DEPENDENCY-DIR]...", programName);
+    Console.Out.WriteLine("Usage: {0} ASSEMBLY OUTPUT-FILE [-f FORMAT] [-r DEPENDENCY-DIR]...", programName);
     return rc;
   }
 
