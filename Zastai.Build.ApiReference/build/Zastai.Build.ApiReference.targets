@@ -3,6 +3,9 @@
   <!-- Configuration; can be set up in the project. -->
   <PropertyGroup>
 
+    <!-- The format to use for the API reference sources. -->
+    <ApiReferenceFormat Condition=" '$(ApiReferenceFormat)' == '' ">C#</ApiReferenceFormat>
+
     <!-- The directories to search for the dependencies of the output assemblies. -->
     <ApiReferenceLibraryPath Condition=" '$(ApiReferenceLibraryPath)' == '' " />
 
@@ -10,7 +13,8 @@
     <ApiReferenceOutputDir Condition=" '$(ApiReferenceOutputDir)' == '' ">$(TargetDir)</ApiReferenceOutputDir>
 
     <!-- The extension to use for the API reference sources. -->
-    <ApiReferenceOutputExt Condition=" '$(ApiReferenceOutputExt)' == '' ">.cs</ApiReferenceOutputExt>
+    <ApiReferenceOutputExt Condition=" '$(ApiReferenceOutputExt)' == '' And ('$(ApiReferenceFormat)' == 'c#' Or '$(ApiReferenceFormat)' == 'cs' Or '$(ApiReferenceFormat)' == 'csharp') ">.cs</ApiReferenceOutputExt>
+    <ApiReferenceOutputExt Condition=" '$(ApiReferenceOutputExt)' == '' ">.txt</ApiReferenceOutputExt>
 
     <!-- The full path to the file to use for the API reference sources. -->
     <ApiReferenceOutputPath Condition=" '$(ApiReferenceOutputPath)' == '' ">$([MSBuild]::EnsureTrailingSlash('$(ApiReferenceOutputDir)'))$(TargetName)$(ApiReferenceOutputExt)</ApiReferenceOutputPath>
@@ -57,6 +61,11 @@
 
   <Target Name="GenerateApiReference" Inputs="@(IntermediateAssembly)" Outputs="$(ApiReferenceOutputPath)"
           DependsOnTargets="_DoNotBuildProjectReferences;ResolveAssemblyReferences">
+
+    <!-- Reference Format: Pass -->
+    <ItemGroup>
+      <_ApiReferenceCommandLineOptions Include="-f &quot;$(ApiReferenceFormat)&quot;" />
+    </ItemGroup>
 
     <!-- Reference Path Configured: Use. -->
     <ItemGroup Condition=" '$(ApiReferenceLibraryPath)' != '' ">
