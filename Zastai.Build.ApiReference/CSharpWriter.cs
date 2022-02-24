@@ -5,6 +5,15 @@ internal class CSharpWriter : ReferenceWriter {
   public CSharpWriter(TextWriter writer) : base(writer) {
   }
 
+  private void WriteAttributes(EventDefinition ed) {
+    if (ed.AddMethod != null) {
+      this.WriteAttributes(ed.AddMethod);
+    }
+    else {
+      this.Writer.Write("/* no add-on method */");
+    }
+  }
+
   private void WriteAttributes(FieldDefinition fd) {
     if (fd.IsPublic) {
       this.Writer.Write("public ");
@@ -212,7 +221,12 @@ internal class CSharpWriter : ReferenceWriter {
     this.WriteCustomAttributes(ed, indent);
     Trace.Assert(ed.IsPublicApi(), $"Event {ed} has unsupported access: {ed.Attributes}.");
     this.WriteIndent(indent);
-    this.Writer.WriteLine($"// TODO: Event: {ed}");
+    this.WriteAttributes(ed);
+    this.Writer.Write("event ");
+    this.WriteTypeName(ed.EventType);
+    this.Writer.Write(' ');
+    this.Writer.Write(ed.Name);
+    this.Writer.WriteLine(';');
   }
 
   protected override void WriteField(FieldDefinition fd, int indent) {
