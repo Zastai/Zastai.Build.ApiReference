@@ -208,18 +208,25 @@ internal class CSharpWriter : ReferenceWriter {
   protected override void WriteEnumField(FieldDefinition fd, int indent) {
     this.WriteCustomAttributes(fd, indent);
     this.WriteIndent(indent);
-    Trace.Assert(fd.IsPublic, $"Enum field {fd} has unsupported access: {fd.Attributes}.");
-    Trace.Assert(fd.IsLiteral, $"Enum field {fd} is not a literal.");
-    Trace.Assert(fd.HasConstant, $"Enum field {fd} has no constant value.");
+    if (!fd.IsPublic) {
+      this.Writer.Write("/* not public */ ");
+    }
     this.Writer.Write(fd.Name);
-    this.Writer.Write(" = ");
-    this.WriteValue(null, fd.Constant);
+    if (fd.IsLiteral && fd.HasConstant) {
+      this.Writer.Write(" = ");
+      this.WriteValue(null, fd.Constant);
+    }
+    else if (fd.IsLiteral) {
+      this.Writer.Write(" /* constant value missing */");
+    }
+    else {
+      this.Writer.Write(" /* not a literal */");
+    }
     this.Writer.WriteLine(',');
   }
 
   protected override void WriteEvent(EventDefinition ed, int indent) {
     this.WriteCustomAttributes(ed, indent);
-    Trace.Assert(ed.IsPublicApi(), $"Event {ed} has unsupported access: {ed.Attributes}.");
     this.WriteIndent(indent);
     this.WriteAttributes(ed);
     this.Writer.Write("event ");
@@ -231,7 +238,7 @@ internal class CSharpWriter : ReferenceWriter {
 
   protected override void WriteField(FieldDefinition fd, int indent) {
     this.WriteCustomAttributes(fd, indent);
-    Trace.Assert(fd.IsPublicApi(), $"Enum field {fd} has unsupported access: {fd.Attributes}.");
+    this.WriteIndent(indent);
     this.WriteAttributes(fd);
     this.WriteTypeName(fd.FieldType);
     this.Writer.Write(' ');
@@ -362,7 +369,6 @@ internal class CSharpWriter : ReferenceWriter {
 
   protected override void WriteMethod(MethodDefinition md, int indent) {
     this.WriteCustomAttributes(md, indent);
-    Trace.Assert(md.IsPublicApi(), $"Method {md} has unsupported access: {md.Attributes}.");
     this.WriteCustomAttributes(md.MethodReturnType.CustomAttributes, "return", indent);
     this.WriteIndent(indent);
     this.WriteAttributes(md);
@@ -580,24 +586,20 @@ internal class CSharpWriter : ReferenceWriter {
     this.WriteIndent(indent);
     var getter = pd.GetMethod;
     var setter = pd.SetMethod;
-    MethodDefinition? singleAccess = null;
-    if (getter is not null && getter.IsPublicApi()) {
-      if (setter is not null && setter.IsPublicApi()) {
-        singleAccess = getter.Attributes == setter.Attributes ? getter : null;
-      }
-      else {
-        singleAccess = getter;
-      }
+    if (getter is not null && !getter.IsPublicApi()) {
+      getter = null;
     }
-    else if (setter is not null && setter.IsPublicApi()) {
-      singleAccess = setter;
+    if (setter is not null && !setter.IsPublicApi()) {
+      setter = null;
+    }
+    MethodDefinition? singleAccess = null;
+    if (getter is not null && setter is not null) {
+      singleAccess = getter.Attributes == setter.Attributes ? getter : null;
     }
     else {
-      // This should have been filtered out
-      Trace.Fail($"Property {pd} has neither a public getter nor a setter.");
+      singleAccess = getter ?? setter;
     }
     if (singleAccess is not null) {
-      Trace.Assert(singleAccess.IsPublicApi(), $"Property {pd} has unsupported access: {singleAccess.Attributes}.");
       this.WriteAttributes(singleAccess);
     }
     this.WriteTypeName(pd.PropertyType);
@@ -610,19 +612,32 @@ internal class CSharpWriter : ReferenceWriter {
       this.Writer.Write(pd.Name);
     }
     this.WriteParameters(pd);
-    this.Writer.Write(" { ");
-    if (getter is not null && getter.IsPublicApi()) {
+    this.Writer.WriteLine(" {");
+    if (getter is not null) {
+      this.WriteCustomAttributes(getter, indent + 2);
+      this.WriteIndent(indent + 2);
       if (singleAccess is null) {
         this.WriteAttributes(getter);
       }
-      this.Writer.Write("get; ");
+      this.Writer.WriteLine("get;");
     }
-    if (setter is not null && setter.IsPublicApi()) {
+    if (setter is not null) {
+      this.WriteCustomAttributes(setter, indent + 2);
+      this.WriteIndent(indent + 2);
       if (singleAccess is null) {
         this.WriteAttributes(setter);
       }
-      this.Writer.Write("set; ");
+      this.Writer.WriteLine("set;");
     }
+    if (getter is null && setter is null) {
+      this.WriteIndent(indent + 2);
+      this.Writer.WriteLine("/* no (public) getter or setter */");
+    }
+    if (pd.HasOtherMethods) {
+      this.WriteIndent(indent + 2);
+      this.Writer.WriteLine("/* unsupported: \"other methods\" */");
+    }
+    this.WriteIndent(indent);
     this.Writer.WriteLine('}');
   }
 
