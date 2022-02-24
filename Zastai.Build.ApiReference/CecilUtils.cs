@@ -64,6 +64,7 @@ internal static class CecilUtils {
           switch (attributeType.Name) {
             case "AsyncStateMachineAttribute":
             case "CompilationRelaxationsAttribute":
+            case "CompilerGeneratedAttribute":
             case "RuntimeCompatibilityAttribute":
               // Not relevant to API
               return false;
