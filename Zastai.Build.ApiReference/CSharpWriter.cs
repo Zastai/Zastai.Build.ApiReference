@@ -196,7 +196,7 @@ internal class CSharpWriter : ReferenceWriter {
     }
   }
 
-  protected override void WriteEnumField(FieldDefinition fd, int indent = 0) {
+  protected override void WriteEnumField(FieldDefinition fd, int indent) {
     this.WriteCustomAttributes(fd, indent);
     this.WriteIndent(indent);
     Trace.Assert(fd.IsPublic, $"Enum field {fd} has unsupported access: {fd.Attributes}.");
@@ -208,11 +208,11 @@ internal class CSharpWriter : ReferenceWriter {
     this.Writer.WriteLine(',');
   }
 
-  protected override void WriteEvent(EventDefinition ed, int indent = 0) {
+  protected override void WriteEvent(EventDefinition ed, int indent) {
     // TODO
   }
 
-  protected override void WriteField(FieldDefinition fd, int indent = 0) {
+  protected override void WriteField(FieldDefinition fd, int indent) {
     this.WriteCustomAttributes(fd, indent);
     Trace.Assert(fd.IsPublicApi(), $"Enum field {fd} has unsupported access: {fd.Attributes}.");
     this.WriteIndent(indent);
@@ -344,7 +344,7 @@ internal class CSharpWriter : ReferenceWriter {
     this.Writer.Write(sb.ToString());
   }
 
-  protected override void WriteMethod(MethodDefinition md, int indent = 0) {
+  protected override void WriteMethod(MethodDefinition md, int indent) {
     this.WriteCustomAttributes(md, indent);
     Trace.Assert(md.IsPublicApi(), $"Method {md} has unsupported access: {md.Attributes}.");
     this.WriteCustomAttributes(md.MethodReturnType.CustomAttributes, "return", indent);
@@ -483,13 +483,16 @@ internal class CSharpWriter : ReferenceWriter {
     this.WriteCustomAttributeArgument(value);
   }
 
-  protected override void WriteNamespace(string name, Action writeContents) {
-    this.Writer.Write("namespace ");
-    this.Writer.Write(name);
-    this.Writer.WriteLine(" {");
+  protected override void WriteNamespaceFooter() {
     this.Writer.WriteLine();
-    writeContents();
     this.Writer.WriteLine('}');
+  }
+
+  protected override void WriteNamespaceHeader() {
+    this.Writer.WriteLine();
+    this.Writer.Write("namespace ");
+    this.Writer.Write(this.CurrentNamespace);
+    this.Writer.WriteLine(" {");
   }
 
   protected override void WriteNull() => this.Writer.Write("null");
@@ -555,7 +558,7 @@ internal class CSharpWriter : ReferenceWriter {
     this.Writer.Write(']');
   }
 
-  protected override void WriteProperty(PropertyDefinition pd, int indent = 0) {
+  protected override void WriteProperty(PropertyDefinition pd, int indent) {
     this.WriteCustomAttributes(pd, indent);
     Trace.Assert(!pd.HasOtherMethods, $"Property has 'other methods' which is not yet supported: {pd}.");
     this.WriteIndent(indent);
@@ -607,8 +610,7 @@ internal class CSharpWriter : ReferenceWriter {
     this.Writer.WriteLine('}');
   }
 
-  protected override void WriteType(TypeDefinition td, int indent = 2) {
-    this.Writer.WriteLine();
+  protected override void WriteType(TypeDefinition td, int indent) {
     this.WriteCustomAttributes(td, indent);
     Trace.Assert(td.IsPublicApi(), $"Type {td} has unsupported access: {td.Attributes}.");
     this.WriteIndent(indent);

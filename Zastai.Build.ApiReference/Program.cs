@@ -63,6 +63,14 @@ public static class Program {
             case "csharp":
               writer = new CSharpWriter(reference);
               break;
+            case "c#-markdown":
+            case "c#-md":
+            case "cs-markdown":
+            case "cs-md":
+            case "csharp-markdown":
+            case "csharp-md":
+              writer = new CSharpMarkdownWriter(reference);
+              break;
             default:
               Console.Error.WriteLine("Unsupported output format: {0}", args[i + 1]);
               return 4;

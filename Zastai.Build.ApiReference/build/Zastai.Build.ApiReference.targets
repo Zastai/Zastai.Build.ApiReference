@@ -3,8 +3,18 @@
   <!-- Configuration; can be set up in the project. -->
   <PropertyGroup>
 
-    <!-- The format to use for the API reference sources. -->
-    <ApiReferenceFormat Condition=" '$(ApiReferenceFormat)' == '' ">C#</ApiReferenceFormat>
+    <!-- The format to use for the API reference sources. This gets normalized for easier conditions. -->
+    <_ApiReferenceFormat />
+    <_ApiReferenceFormat Condition=" '$(ApiReferenceFormat)' == '' ">C#</_ApiReferenceFormat>
+    <_ApiReferenceFormat Condition=" '$(ApiReferenceFormat)' == 'C#' ">C#</_ApiReferenceFormat>
+    <_ApiReferenceFormat Condition=" '$(ApiReferenceFormat)' == 'CS' ">C#</_ApiReferenceFormat>
+    <_ApiReferenceFormat Condition=" '$(ApiReferenceFormat)' == 'CSharp' ">C#</_ApiReferenceFormat>
+    <_ApiReferenceFormat Condition=" '$(ApiReferenceFormat)' == 'C#-MarkDown' ">C#-MarkDown</_ApiReferenceFormat>
+    <_ApiReferenceFormat Condition=" '$(ApiReferenceFormat)' == 'C#-MD' ">C#-MarkDown</_ApiReferenceFormat>
+    <_ApiReferenceFormat Condition=" '$(ApiReferenceFormat)' == 'CS-MarkDown' ">C#-MarkDown</_ApiReferenceFormat>
+    <_ApiReferenceFormat Condition=" '$(ApiReferenceFormat)' == 'CS-MD' ">C#-MarkDown</_ApiReferenceFormat>
+    <_ApiReferenceFormat Condition=" '$(ApiReferenceFormat)' == 'CSharp-MarkDown' ">C#-MarkDown</_ApiReferenceFormat>
+    <_ApiReferenceFormat Condition=" '$(ApiReferenceFormat)' == 'CSharp-MD' ">C#-MarkDown</_ApiReferenceFormat>
 
     <!-- The directories to search for the dependencies of the output assemblies. -->
     <ApiReferenceLibraryPath Condition=" '$(ApiReferenceLibraryPath)' == '' " />
@@ -13,7 +23,8 @@
     <ApiReferenceOutputDir Condition=" '$(ApiReferenceOutputDir)' == '' ">$(TargetDir)</ApiReferenceOutputDir>
 
     <!-- The extension to use for the API reference sources. -->
-    <ApiReferenceOutputExt Condition=" '$(ApiReferenceOutputExt)' == '' And ('$(ApiReferenceFormat)' == 'c#' Or '$(ApiReferenceFormat)' == 'cs' Or '$(ApiReferenceFormat)' == 'csharp') ">.cs</ApiReferenceOutputExt>
+    <ApiReferenceOutputExt Condition=" '$(ApiReferenceOutputExt)' == '' And '$(_ApiReferenceFormat)' == 'C#' ">.cs</ApiReferenceOutputExt>
+    <ApiReferenceOutputExt Condition=" '$(ApiReferenceOutputExt)' == '' And '$(_ApiReferenceFormat)' == 'C#-MarkDown' ">.cs.md</ApiReferenceOutputExt>
     <ApiReferenceOutputExt Condition=" '$(ApiReferenceOutputExt)' == '' ">.txt</ApiReferenceOutputExt>
 
     <!-- The full path to the file to use for the API reference sources. -->
@@ -62,9 +73,12 @@
   <Target Name="GenerateApiReference" Inputs="@(IntermediateAssembly)" Outputs="$(ApiReferenceOutputPath)"
           DependsOnTargets="_DoNotBuildProjectReferences;ResolveAssemblyReferences">
 
-    <!-- Reference Format: Pass -->
+    <!-- Invalid Reference Format: Error. -->
+    <Error Text="Invalid API Reference format: $(ApiReferenceFormat)." Condition=" '$(_ApiReferenceFormat)' == '' " />
+
+    <!-- Valid Reference Format: Pass. -->
     <ItemGroup>
-      <_ApiReferenceCommandLineOptions Include="-f &quot;$(ApiReferenceFormat)&quot;" />
+      <_ApiReferenceCommandLineOptions Include="-f &quot;$(_ApiReferenceFormat)&quot;" />
     </ItemGroup>
 
     <!-- Reference Path Configured: Use. -->

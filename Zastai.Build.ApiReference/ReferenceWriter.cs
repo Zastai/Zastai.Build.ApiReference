@@ -6,10 +6,21 @@ internal abstract class ReferenceWriter {
 
   private static char[]? _indentationSpaces;
 
+  protected virtual int TopLevelTypeIndent => 2;
+
   protected readonly TextWriter Writer;
 
   protected ReferenceWriter(TextWriter writer) {
     this.Writer = writer;
+  }
+
+  protected virtual void WriteAssemblyAttributeFooter(AssemblyDefinition ad) {
+  }
+
+  protected virtual  void WriteAssemblyAttributeHeader(AssemblyDefinition ad) {
+    this.Writer.WriteLine();
+    this.WriteCommentLine("Assembly Attributes");
+    this.Writer.WriteLine();
   }
 
   protected virtual bool WriteBuiltinTypeKeyword(TypeReference tr) => false;
@@ -24,20 +35,19 @@ internal abstract class ReferenceWriter {
     if (!ad.HasCustomAttributes) {
       return;
     }
-    this.Writer.WriteLine();
-    this.WriteCommentLine("Assembly Attributes");
-    this.Writer.WriteLine();
-    this.WriteCustomAttributes(ad.CustomAttributes, "assembly");
+    this.WriteAssemblyAttributeHeader(ad);
+    this.WriteCustomAttributes(ad.CustomAttributes, "assembly", 0);
+    this.WriteAssemblyAttributeFooter(ad);
   }
 
-  protected void WriteCustomAttributes(ICustomAttributeProvider cap, int indent = 0) {
+  protected void WriteCustomAttributes(ICustomAttributeProvider cap, int indent) {
     if (!cap.HasCustomAttributes) {
       return;
     }
     this.WriteCustomAttributes(cap.CustomAttributes, null, indent);
   }
 
-  protected void WriteCustomAttributes(IEnumerable<CustomAttribute> attributes, string? target = null, int indent = 0) {
+  protected void WriteCustomAttributes(IEnumerable<CustomAttribute> attributes, string? target, int indent) {
     // Sort by the (full) type name; unfortunately, I'm not sure how to sort duplicates in a stable way.
     var sortedAttributes = new SortedDictionary<string, IList<CustomAttribute>>();
     foreach (var ca in attributes) {
@@ -74,13 +84,21 @@ internal abstract class ReferenceWriter {
     if (!md.HasCustomAttributes) {
       return;
     }
-    this.Writer.WriteLine();
-    this.WriteCommentLine($"Assembly Attributes ({md.Name})");
-    this.Writer.WriteLine();
-    this.WriteCustomAttributes(md.CustomAttributes, "module");
+    this.WriteModuleAttributeHeader(md);
+    this.WriteCustomAttributes(md.CustomAttributes, "module", 0);
+    this.WriteModuleAttributeFooter(md);
   }
 
-  protected abstract void WriteEnumField(FieldDefinition fd, int indent = 0);
+  protected virtual void WriteModuleAttributeFooter(ModuleDefinition md) {
+  }
+
+  protected virtual void WriteModuleAttributeHeader(ModuleDefinition md) {
+    this.Writer.WriteLine();
+    this.WriteCommentLine($"Module Attributes ({md.Name})");
+    this.Writer.WriteLine();
+  }
+
+  protected abstract void WriteEnumField(FieldDefinition fd, int indent);
 
   protected virtual void WriteEnumValue(TypeDefinition enumType, string name) {
     this.WriteTypeName(enumType);
@@ -88,9 +106,9 @@ internal abstract class ReferenceWriter {
     this.Writer.Write(name);
   }
 
-  protected abstract void WriteEvent(EventDefinition ed, int indent = 0);
+  protected abstract void WriteEvent(EventDefinition ed, int indent);
 
-  protected void WriteEvents(TypeDefinition td, int indent = 0) {
+  protected void WriteEvents(TypeDefinition td, int indent) {
     if (!td.HasEvents) {
       return;
     }
@@ -114,9 +132,9 @@ internal abstract class ReferenceWriter {
     }
   }
 
-  protected abstract void WriteField(FieldDefinition fd, int indent = 0);
+  protected abstract void WriteField(FieldDefinition fd, int indent);
 
-  protected void WriteFields(TypeDefinition td, int indent = 0) {
+  protected void WriteFields(TypeDefinition td, int indent) {
     if (!td.HasFields) {
       return;
     }
@@ -150,6 +168,13 @@ internal abstract class ReferenceWriter {
     }
   }
 
+  protected virtual void WriteFileFooter(AssemblyDefinition ad) {
+  }
+
+  protected virtual void WriteFileHeader(AssemblyDefinition ad) {
+    this.WriteCommentLine("=== Generated API Reference === DO NOT EDIT BY HAND ===");
+  }
+
   protected abstract void WriteGenericParameter(GenericParameter gp);
 
   protected void WriteGenericParameterConstraint(GenericParameterConstraint constraint) {
@@ -177,9 +202,9 @@ internal abstract class ReferenceWriter {
     this.Writer.Write(ReferenceWriter._indentationSpaces, 0, indent);
   }
 
-  protected abstract void WriteMethod(MethodDefinition md, int indent = 0);
+  protected abstract void WriteMethod(MethodDefinition md, int indent);
 
-  protected void WriteMethods(TypeDefinition td, int indent = 0) {
+  protected void WriteMethods(TypeDefinition td, int indent) {
     if (!td.HasMethods) {
       return;
     }
@@ -238,9 +263,13 @@ internal abstract class ReferenceWriter {
 
   protected abstract void WriteLiteral(string value);
 
-  protected abstract void WriteNamespace(string name, Action writeContents);
+  protected virtual void WriteNamespaceFooter() {
+  }
 
-  protected void WriteNestedTypes(TypeDefinition td, int indent = 0) {
+  protected virtual void WriteNamespaceHeader() {
+  }
+
+  protected void WriteNestedTypes(TypeDefinition td, int indent) {
     if (!td.HasNestedTypes) {
       return;
     }
@@ -258,6 +287,7 @@ internal abstract class ReferenceWriter {
       return;
     }
     foreach (var type in nestedTypes) {
+      this.Writer.WriteLine();
       this.WriteType(type.Value, indent);
     }
   }
@@ -266,7 +296,7 @@ internal abstract class ReferenceWriter {
 
   protected abstract void WriteOr();
 
-  protected void WriteProperties(TypeDefinition td, int indent = 0) {
+  protected void WriteProperties(TypeDefinition td, int indent) {
     if (!td.HasProperties) {
       return;
     }
@@ -309,15 +339,16 @@ internal abstract class ReferenceWriter {
     }
   }
 
-  protected abstract void WriteProperty(PropertyDefinition pd, int indent = 0);
+  protected abstract void WriteProperty(PropertyDefinition pd, int indent);
 
   public void WritePublicApi(AssemblyDefinition ad) {
-    this.WriteCommentLine("=== Generated API Reference === DO NOT EDIT BY HAND ===");
+    this.WriteFileHeader(ad);
     this.WriteCustomAttributes(ad);
     foreach (var md in ad.Modules) {
       this.WriteCustomAttributes(md);
     }
     this.WriteTopLevelTypes(ad);
+    this.WriteFileFooter(ad);
   }
 
   protected void WriteSeparatedList<T>(IEnumerable<T> items, string separator, Action<T> write) {
@@ -352,18 +383,27 @@ internal abstract class ReferenceWriter {
       // FIXME: Do we need to care about "exported types"?
     }
     foreach (var ns in namespacedTypes) {
-      this.Writer.WriteLine();
       this.CurrentNamespace = ns.Key;
-      this.WriteNamespace(ns.Key, () => {
-        foreach (var type in ns.Value) {
-          this.WriteType(type.Value);
-        }
-      });
+      this.WriteNamespaceHeader();
+      foreach (var type in ns.Value) {
+        var td = type.Value;
+        this.WriteTypeHeader(td);
+        this.WriteType(td, this.TopLevelTypeIndent);
+        this.WriteTypeFooter(td);
+      }
+      this.WriteNamespaceFooter();
       this.CurrentNamespace = null;
     }
   }
 
-  protected abstract void WriteType(TypeDefinition td, int indent = 2);
+  protected virtual void WriteTypeFooter(TypeDefinition td) {
+  }
+
+  protected virtual void WriteTypeHeader(TypeDefinition td) {
+    this.Writer.WriteLine();
+  }
+
+  protected abstract void WriteType(TypeDefinition td, int indent);
 
   protected void WriteTypeName(TypeReference tr, bool includeDeclaringType = true, bool forOutParameter = false) {
     // Check for pass-by-reference and make it ref T
