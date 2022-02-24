@@ -209,13 +209,15 @@ internal class CSharpWriter : ReferenceWriter {
   }
 
   protected override void WriteEvent(EventDefinition ed, int indent) {
-    // TODO
+    this.WriteCustomAttributes(ed, indent);
+    Trace.Assert(ed.IsPublicApi(), $"Event {ed} has unsupported access: {ed.Attributes}.");
+    this.WriteIndent(indent);
+    this.Writer.WriteLine($"// TODO: Event: {ed}");
   }
 
   protected override void WriteField(FieldDefinition fd, int indent) {
     this.WriteCustomAttributes(fd, indent);
     Trace.Assert(fd.IsPublicApi(), $"Enum field {fd} has unsupported access: {fd.Attributes}.");
-    this.WriteIndent(indent);
     this.WriteAttributes(fd);
     this.WriteTypeName(fd.FieldType);
     this.Writer.Write(' ');
