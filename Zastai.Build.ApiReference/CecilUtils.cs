@@ -12,6 +12,9 @@ internal static class CecilUtils {
 
   public static bool IsCompilerGenerated(this TypeReference tr) {
     var td = tr.Resolve();
+    if (td is null) {
+      return false;
+    }
     if (!td.HasCustomAttributes) {
       return false;
     }
