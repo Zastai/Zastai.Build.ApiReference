@@ -9,6 +9,13 @@ namespace Zastai.Build.ApiReference;
 [PublicAPI]
 internal static class CecilUtils {
 
+  public static MethodDefinition? IfPublicApi(this MethodDefinition? method) {
+    if (method is null) {
+      return null;
+    }
+    return method.IsPublicApi() ? method : null;
+  }
+
   public static bool IsByRefLike(this TypeDefinition td) {
     if (!td.HasCustomAttributes) {
       return false;
@@ -101,6 +108,12 @@ internal static class CecilUtils {
             case "IsByRefLikeAttribute":
               // This is handled as part of struct definition handling.
               return false;
+            case "IsReadOnlyAttribute":
+              // This is handled as part of relevant handling:
+              // - type definitions (for readonly struct)
+              // - method & property definitions (for readonly struct members)
+              // - return types
+              return false;
           }
           break;
       }
@@ -119,6 +132,24 @@ internal static class CecilUtils {
 
   public static bool IsPublicApi(this TypeDefinition td)
     => td.IsPublic || td.IsNestedPublic || td.IsNestedFamily || td.IsNestedFamilyOrAssembly;
+
+  private static bool IsReadOnlyInternal(ICustomAttributeProvider provider) {
+    if (!provider.HasCustomAttributes) {
+      return false;
+    }
+    foreach (var ca in provider.CustomAttributes) {
+      if (ca.AttributeType.IsCoreLibraryType("System.Runtime.CompilerServices", "IsReadOnlyAttribute")) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  public static bool IsReadOnly(this MethodDefinition md) => CecilUtils.IsReadOnlyInternal(md);
+
+  public static bool IsReadOnly(this PropertyDefinition pd) => CecilUtils.IsReadOnlyInternal(pd);
+
+  public static bool IsReadOnly(this TypeDefinition td) => CecilUtils.IsReadOnlyInternal(td);
 
   private static class Obsolete {
 

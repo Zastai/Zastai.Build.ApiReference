@@ -125,6 +125,7 @@ internal class CSharpWriter : ReferenceWriter {
       this.Writer.Write("long");
     }
     else if (tr == ts.IntPtr) {
+      // Technically this is only the case if it's marked with [System.Runtime.CompilerServices.NativeIntegerAttribute]
       this.Writer.Write("nint");
     }
     else if (tr == ts.SByte) {
@@ -149,6 +150,7 @@ internal class CSharpWriter : ReferenceWriter {
       this.Writer.Write("ulong");
     }
     else if (tr == ts.UIntPtr) {
+      // Technically this is only the case if it's marked with [System.Runtime.CompilerServices.NativeIntegerAttribute]
       this.Writer.Write("nuint");
     }
     else if (tr == ts.Void) {
@@ -380,6 +382,9 @@ internal class CSharpWriter : ReferenceWriter {
     this.WriteCustomAttributes(md.MethodReturnType.CustomAttributes, "return", indent);
     this.WriteIndent(indent);
     this.WriteAttributes(md);
+    if (md.IsReadOnly()) {
+      this.Writer.Write("readonly ");
+    }
     if (md.IsRuntimeSpecialName) {
       // Runtime-Special Names
       if (md.Name is ".ctor" or ".cctor") {
@@ -592,24 +597,6 @@ internal class CSharpWriter : ReferenceWriter {
     this.WriteCustomAttributes(pd, indent);
     Trace.Assert(!pd.HasOtherMethods, $"Property has 'other methods' which is not yet supported: {pd}.");
     this.WriteIndent(indent);
-    var getter = pd.GetMethod;
-    var setter = pd.SetMethod;
-    if (getter is not null && !getter.IsPublicApi()) {
-      getter = null;
-    }
-    if (setter is not null && !setter.IsPublicApi()) {
-      setter = null;
-    }
-    MethodDefinition? singleAccess = null;
-    if (getter is not null && setter is not null) {
-      singleAccess = getter.Attributes == setter.Attributes ? getter : null;
-    }
-    else {
-      singleAccess = getter ?? setter;
-    }
-    if (singleAccess is not null) {
-      this.WriteAttributes(singleAccess);
-    }
     this.WriteTypeName(pd.PropertyType);
     this.Writer.Write(' ');
     // FIXME: Or should this only be done when the type has [System.Reflection.DefaultMemberAttribute("Item")]?
@@ -621,32 +608,55 @@ internal class CSharpWriter : ReferenceWriter {
     }
     this.WriteParameters(pd);
     this.Writer.WriteLine(" {");
-    if (getter is not null) {
-      this.WriteCustomAttributes(getter, indent + 2);
-      this.WriteIndent(indent + 2);
-      if (singleAccess is null) {
-        this.WriteAttributes(getter);
-      }
-      this.Writer.WriteLine("get;");
-    }
-    if (setter is not null) {
-      this.WriteCustomAttributes(setter, indent + 2);
-      this.WriteIndent(indent + 2);
-      if (singleAccess is null) {
-        this.WriteAttributes(setter);
-      }
-      this.Writer.WriteLine("set;");
-    }
-    if (getter is null && setter is null) {
-      this.WriteIndent(indent + 2);
-      this.Writer.WriteLine("/* no (public) getter or setter */");
-    }
+    this.WritePropertyAccessor(pd.GetMethod.IfPublicApi(), indent + 2);
+    this.WritePropertyAccessor(pd.SetMethod.IfPublicApi(), indent + 2);
     if (pd.HasOtherMethods) {
       this.WriteIndent(indent + 2);
       this.Writer.WriteLine("/* unsupported: \"other methods\" */");
     }
     this.WriteIndent(indent);
     this.Writer.WriteLine('}');
+  }
+
+  private void WritePropertyAccessor(MethodDefinition? method, int indent) {
+    if (method is null) {
+      return;
+    }
+    this.WriteCustomAttributes(method, indent);
+    this.WriteIndent(indent);
+    this.WriteAttributes(method);
+    if (method.IsReadOnly()) {
+      this.Writer.Write("readonly ");
+    }
+    if (method.IsGetter) {
+      this.Writer.Write("get");
+    }
+    else if (method.IsSetter) {
+      this.Writer.Write("set");
+    }
+    this.Writer.WriteLine(';');
+  }
+
+  protected override void WriteRequiredModifierTypeName(RequiredModifierType rmt) {
+    // These are weird things
+    var type = rmt.ElementType;
+    var modifier = rmt.ModifierType;
+    // This is for "where T : unmanaged"; UnmanagedType is not a core library type though, it's in System.Runtime.InteropServices.
+    if (type.IsCoreLibraryType("System", "ValueType") && modifier.FullName == "System.Runtime.InteropServices.UnmanagedType") {
+      this.Writer.Write("unmanaged");
+    }
+    else if (type.IsByReference && modifier.IsCoreLibraryType("System.Runtime.InteropServices", "InAttribute")) {
+      // This signals a `ref readonly xxx` return type
+      this.Writer.Write("ref readonly ");
+      this.WriteTypeName(type.GetElementType());
+    }
+    else {
+      // Actual meanings to be determined - put the modifier in a comment for now
+      this.WriteTypeName(type);
+      this.Writer.Write(" /* modified by: ");
+      this.WriteTypeName(modifier);
+      this.Writer.Write(" */");
+    }
   }
 
   protected override void WriteType(TypeDefinition td, int indent) {
@@ -661,6 +671,9 @@ internal class CSharpWriter : ReferenceWriter {
       this.Writer.Write("interface");
     }
     else if (td.IsValueType) {
+      if (td.IsReadOnly()) {
+        this.Writer.Write("readonly ");
+      }
       if (td.IsByRefLike()) {
         this.Writer.Write("ref ");
       }
@@ -734,22 +747,54 @@ internal class CSharpWriter : ReferenceWriter {
     this.Writer.WriteLine('}');
   }
 
-  protected override void WriteRequiredModifierTypeName(RequiredModifierType rmt) {
+  protected override void WriteTypeName(TypeReference tr, bool includeDeclaringType = true, bool forOutParameter = false) {
+    // Check for pass-by-reference and make it ref T
+    if (tr.IsByReference) {
+      if (!forOutParameter) {
+        this.Writer.Write("ref ");
+      }
+      tr = tr.GetElementType();
+    }
+    // Check for arrays and make them T[]
+    if (tr.IsArray) {
+      this.WriteTypeName(tr.GetElementType(), includeDeclaringType);
+      this.Writer.Write("[]");
+      return;
+    }
+    // Check for System.Nullable<T> and make it T?
+    if (tr.TryUnwrapNullable(out var unwrapped)) {
+      this.WriteTypeName(unwrapped, includeDeclaringType);
+      this.Writer.Write('?');
+      return;
+    }
     // These are weird things
-    var type = rmt.ElementType;
-    var modifier = rmt.ModifierType;
-    // This is for "where T : unmanaged"; UnmanagedType is not a core library type though, it's in System.Runtime.InteropServices.
-    if (type.IsCoreLibraryType("System", "ValueType") &&
-        modifier.Namespace == "System.Runtime.InteropServices" && modifier.Name == "UnmanagedType") {
-      this.Writer.Write("unmanaged");
+    if (tr is RequiredModifierType rmt) {
+      this.WriteRequiredModifierTypeName(rmt);
+      return;
     }
-    else {
-      // Actual meanings to be determined - put the modifier in a comment for now
-      this.WriteTypeName(type);
-      this.Writer.Write(" /* modified by: ");
-      this.WriteTypeName(modifier);
-      this.Writer.Write(" */");
+    // Check for specific framework types that have a keyword form
+    if (this.WriteBuiltinTypeKeyword(tr)) {
+      return;
     }
+    // Otherwise, full stringification.
+    if (tr.IsNested && includeDeclaringType) {
+      // TODO: Possibly omit name of current type, or even all enclosing types?
+      this.WriteTypeName(tr.DeclaringType, includeDeclaringType);
+      this.Writer.Write('.');
+    }
+    else if (!string.IsNullOrEmpty(tr.Namespace) && tr.Namespace != this.CurrentNamespace) {
+      this.Writer.Write(tr.Namespace);
+      this.Writer.Write('.');
+    }
+    var name = tr.Name;
+    // Strip off the part after a backtick. This used to assert that only generic types have a backtick, but non-generic nested
+    // types inside a generic type can be generic while not themselves having a backtick.
+    var backTick = name.IndexOf('`');
+    if (backTick >= 0) {
+      name = name.Substring(0, backTick);
+    }
+    this.Writer.Write(name);
+    this.WriteGenericParameters(tr);
   }
 
   protected override void WriteTypeOf(TypeReference tr) {

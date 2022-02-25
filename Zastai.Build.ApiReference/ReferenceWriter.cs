@@ -407,55 +407,7 @@ internal abstract class ReferenceWriter {
 
   protected abstract void WriteType(TypeDefinition td, int indent);
 
-  protected void WriteTypeName(TypeReference tr, bool includeDeclaringType = true, bool forOutParameter = false) {
-    // Check for pass-by-reference and make it ref T
-    if (tr.IsByReference) {
-      if (!forOutParameter) {
-        this.Writer.Write("ref ");
-      }
-      tr = tr.GetElementType();
-    }
-    // Check for arrays and make them T[]
-    if (tr.IsArray) {
-      this.WriteTypeName(tr.GetElementType(), includeDeclaringType);
-      this.Writer.Write("[]");
-      return;
-    }
-    // Check for System.Nullable<T> and make it T?
-    if (tr.TryUnwrapNullable(out var unwrapped)) {
-      this.WriteTypeName(unwrapped, includeDeclaringType);
-      this.Writer.Write('?');
-      return;
-    }
-    // These are weird things
-    if (tr is RequiredModifierType rmt) {
-      this.WriteRequiredModifierTypeName(rmt);
-      return;
-    }
-    // Check for specific framework types that have a keyword form
-    if (this.WriteBuiltinTypeKeyword(tr)) {
-      return;
-    }
-    // Otherwise, full stringification.
-    if (tr.IsNested && includeDeclaringType) {
-      // TODO: Possibly omit name of current type, or even all enclosing types?
-      this.WriteTypeName(tr.DeclaringType, includeDeclaringType);
-      this.Writer.Write('.');
-    }
-    else if (!string.IsNullOrEmpty(tr.Namespace) && tr.Namespace != this.CurrentNamespace) {
-      this.Writer.Write(tr.Namespace);
-      this.Writer.Write('.');
-    }
-    var name = tr.Name;
-    // Strip off the part after a backtick. This used to assert that only generic types have a backtick, but non-generic nested
-    // types inside a generic type can be generic while not themselves having a backtick.
-    var backTick = name.IndexOf('`');
-    if (backTick >= 0) {
-      name = name.Substring(0, backTick);
-    }
-    this.Writer.Write(name);
-    this.WriteGenericParameters(tr);
-  }
+  protected abstract void WriteTypeName(TypeReference tr, bool includeDeclaringType = true, bool forOutParameter = false);
 
   protected abstract void WriteTypeOf(TypeReference tr);
 
