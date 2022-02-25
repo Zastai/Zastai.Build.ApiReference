@@ -661,6 +661,9 @@ internal class CSharpWriter : ReferenceWriter {
       this.Writer.Write("interface");
     }
     else if (td.IsValueType) {
+      if (td.IsByRefLike()) {
+        this.Writer.Write("ref ");
+      }
       this.Writer.Write("struct");
     }
     else if (td.IsClass) {

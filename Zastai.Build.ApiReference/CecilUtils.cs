@@ -1,5 +1,4 @@
-﻿using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
+﻿using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 
 using JetBrains.Annotations;
@@ -9,6 +8,18 @@ namespace Zastai.Build.ApiReference;
 /// <summary>Utility methods for working with Mono.Cecil elements.</summary>
 [PublicAPI]
 internal static class CecilUtils {
+
+  public static bool IsByRefLike(this TypeDefinition td) {
+    if (!td.HasCustomAttributes) {
+      return false;
+    }
+    foreach (var ca in td.CustomAttributes) {
+      if (ca.AttributeType.IsCoreLibraryType("System.Runtime.CompilerServices", "IsByRefLikeAttribute")) {
+        return true;
+      }
+    }
+    return false;
+  }
 
   public static bool IsCompilerGenerated(this TypeReference tr) {
     var td = tr.Resolve();
@@ -45,6 +56,19 @@ internal static class CecilUtils {
       switch (attributeType.Namespace) {
         case "System":
           switch (attributeType.Name) {
+            case "ObsoleteAttribute":
+              // This is normally relevant to public API. But the compiler sometimes introduces one when particular language
+              // features are used, and we don't care about those.
+              if (ca.HasConstructorArguments) {
+                var arg = ca.ConstructorArguments[0];
+                if (arg.Type == arg.Type.Module.TypeSystem.String) {
+                  switch ((string) arg.Value) {
+                    case Obsolete.RefStructs:
+                      return false;
+                  }
+                }
+              }
+              return true;
             case "ParamArrayAttribute":
               // This is handled as part of parameter attribute handling
               return false;
@@ -74,6 +98,9 @@ internal static class CecilUtils {
             case "ExtensionAttribute":
               // This is handled as part of method signature handling; we don't care about its presence on assemblies/classes
               return false;
+            case "IsByRefLikeAttribute":
+              // This is handled as part of struct definition handling.
+              return false;
           }
           break;
       }
@@ -92,6 +119,12 @@ internal static class CecilUtils {
 
   public static bool IsPublicApi(this TypeDefinition td)
     => td.IsPublic || td.IsNestedPublic || td.IsNestedFamily || td.IsNestedFamilyOrAssembly;
+
+  private static class Obsolete {
+
+    public const string RefStructs = "Types with embedded references are not supported in this version of your compiler.";
+
+  }
 
   public static bool TryUnwrapNullable(this TypeReference tr, [NotNullWhen(true)] out TypeReference? unwrapped) {
     if (tr.Scope == tr.Module.TypeSystem.CoreLibrary) {
