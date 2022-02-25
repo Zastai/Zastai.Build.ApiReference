@@ -210,7 +210,7 @@ internal abstract class ReferenceWriter {
     }
     var methods = new SortedDictionary<string, SortedDictionary<string, MethodDefinition>>();
     foreach (var method in td.Methods) {
-      if (!method.IsPublicApi() || method.IsAddOn || method.IsGetter || method.IsSetter) {
+      if (!method.IsPublicApi() || method.IsAddOn || method.IsGetter || method.IsRemoveOn || method.IsSetter) {
         continue;
       }
       if (!methods.TryGetValue(method.Name, out var overloads)) {
