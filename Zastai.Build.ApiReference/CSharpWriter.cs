@@ -571,7 +571,15 @@ internal class CSharpWriter : ReferenceWriter {
       this.Writer.Write("get");
     }
     else if (method.IsSetter) {
-      this.Writer.Write("set");
+      // For `init`, it's not an attribute on the setter method, but rather a "required modifier" of
+      // on its return type (void). A bit weird, but whatever.
+      if (method.ReturnType is RequiredModifierType rmt && rmt.ElementType == rmt.Module.TypeSystem.Void &&
+          rmt.ModifierType.IsCoreLibraryType("System.Runtime.CompilerServices", "IsExternalInit")) {
+        this.Writer.Write("init");
+      }
+      else {
+        this.Writer.Write("set");
+      }
     }
     this.Writer.WriteLine(';');
   }
