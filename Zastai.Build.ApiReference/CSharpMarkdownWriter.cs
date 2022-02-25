@@ -46,7 +46,9 @@ internal class CSharpMarkdownWriter : CSharpWriter {
 
   protected override void WriteTypeHeader(TypeDefinition td) {
     this.Writer.WriteLine();
-    this.Writer.WriteLine($"### Type: {td.Name}");
+    this.Writer.Write("### Type: ");
+    this.WriteTypeName(td);
+    this.Writer.WriteLine();
     this.Writer.WriteLine();
     this.Writer.WriteLine("```cs");
   }

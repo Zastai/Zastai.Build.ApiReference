@@ -321,7 +321,13 @@ internal class CSharpWriter : ReferenceWriter {
     if (md.IsRuntimeSpecialName) {
       // Runtime-Special Names
       if (md.Name is ".ctor" or ".cctor") {
-        this.Writer.Write(md.DeclaringType.Name);
+        // Just the type name, but without the "`n" suffix on generic types.
+        var constructorName = md.DeclaringType.Name;
+        var backtick = constructorName.IndexOf('`');
+        if (backtick > 0) {
+          constructorName = constructorName.Substring(0, backtick);
+        }
+        this.Writer.Write(constructorName);
       }
       else {
         this.WriteTypeName(md.ReturnType);
