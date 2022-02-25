@@ -178,7 +178,7 @@ internal abstract class ReferenceWriter {
   protected abstract void WriteGenericParameter(GenericParameter gp);
 
   protected void WriteGenericParameterConstraint(GenericParameterConstraint constraint) {
-    // FIXME: Do we need to care about custom attributes on these?
+    this.WriteCustomAttributes(constraint, -1);
     this.WriteTypeName(constraint.ConstraintType);
   }
 
@@ -351,6 +351,8 @@ internal abstract class ReferenceWriter {
     this.WriteFileFooter(ad);
   }
 
+  protected abstract void WriteRequiredModifierTypeName(RequiredModifierType rmt);
+
   protected void WriteSeparatedList<T>(IEnumerable<T> items, string separator, Action<T> write) {
     var first = true;
     foreach (var item in items) {
@@ -423,6 +425,11 @@ internal abstract class ReferenceWriter {
     if (tr.TryUnwrapNullable(out var unwrapped)) {
       this.WriteTypeName(unwrapped, includeDeclaringType);
       this.Writer.Write('?');
+      return;
+    }
+    // These are weird things
+    if (tr is RequiredModifierType rmt) {
+      this.WriteRequiredModifierTypeName(rmt);
       return;
     }
     // Check for specific framework types that have a keyword form

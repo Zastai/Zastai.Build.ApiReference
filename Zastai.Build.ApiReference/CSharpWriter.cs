@@ -154,9 +154,11 @@ internal class CSharpWriter : ReferenceWriter {
     else if (tr == ts.Void) {
       this.Writer.Write("void");
     }
-    // This one has no special property on TypeSystem
     else if (tr.IsCoreLibraryType("System", "Decimal")) {
       this.Writer.Write("decimal");
+    }
+    else if (tr.IsCoreLibraryType("System", "ValueType")) {
+      this.Writer.Write("struct");
     }
     else {
       return false;
@@ -277,13 +279,11 @@ internal class CSharpWriter : ReferenceWriter {
     this.Writer.Write(" : ");
     var first = true;
     foreach (var constraint in parameter.Constraints) {
-      if (first) {
-        first = false;
-      }
-      else {
+      if (!first) {
         this.Writer.Write(", ");
       }
       this.WriteGenericParameterConstraint(constraint);
+      first = false;
     }
   }
 
@@ -710,14 +710,12 @@ internal class CSharpWriter : ReferenceWriter {
         }
         var first = true;
         foreach (var implementation in td.Interfaces) {
-          if (first) {
-            first = false;
-          }
-          else {
+          if (!first) {
             this.Writer.Write(", ");
           }
-          // FIXME: Do we need to care about custom attributes on these?
+          this.WriteCustomAttributes(implementation, -1);
           this.WriteTypeName(implementation.InterfaceType);
+          first = false;
         }
       }
     }
@@ -731,6 +729,24 @@ internal class CSharpWriter : ReferenceWriter {
     this.Writer.WriteLine();
     this.WriteIndent(indent);
     this.Writer.WriteLine('}');
+  }
+
+  protected override void WriteRequiredModifierTypeName(RequiredModifierType rmt) {
+    // These are weird things
+    var type = rmt.ElementType;
+    var modifier = rmt.ModifierType;
+    // This is for "where T : unmanaged"; UnmanagedType is not a core library type though, it's in System.Runtime.InteropServices.
+    if (type.IsCoreLibraryType("System", "ValueType") &&
+        modifier.Namespace == "System.Runtime.InteropServices" && modifier.Name == "UnmanagedType") {
+      this.Writer.Write("unmanaged");
+    }
+    else {
+      // Actual meanings to be determined - put the modifier in a comment for now
+      this.WriteTypeName(type);
+      this.Writer.Write(" /* modified by: ");
+      this.WriteTypeName(modifier);
+      this.Writer.Write(" */");
+    }
   }
 
   protected override void WriteTypeOf(TypeReference tr) {
