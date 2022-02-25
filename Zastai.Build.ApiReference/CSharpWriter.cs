@@ -124,6 +124,9 @@ internal class CSharpWriter : ReferenceWriter {
     else if (tr == ts.Int64) {
       this.Writer.Write("long");
     }
+    else if (tr == ts.IntPtr) {
+      this.Writer.Write("nint");
+    }
     else if (tr == ts.SByte) {
       this.Writer.Write("sbyte");
     }
@@ -144,6 +147,9 @@ internal class CSharpWriter : ReferenceWriter {
     }
     else if (tr == ts.UInt64) {
       this.Writer.Write("ulong");
+    }
+    else if (tr == ts.UIntPtr) {
+      this.Writer.Write("nuint");
     }
     else if (tr == ts.Void) {
       this.Writer.Write("void");
