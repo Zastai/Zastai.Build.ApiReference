@@ -23,8 +23,6 @@ internal abstract class ReferenceWriter {
     this.Writer.WriteLine();
   }
 
-  protected virtual bool WriteBuiltinTypeKeyword(TypeReference tr) => false;
-
   protected abstract void WriteCast(TypeDefinition targetType, Action writeValue);
 
   protected abstract void WriteCommentLine(string comment);

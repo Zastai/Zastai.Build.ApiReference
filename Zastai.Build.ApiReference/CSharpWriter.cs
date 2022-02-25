@@ -101,73 +101,6 @@ internal class CSharpWriter : ReferenceWriter {
     }
   }
 
-  protected override bool WriteBuiltinTypeKeyword(TypeReference tr) {
-    var ts = tr.Module.TypeSystem;
-    if (tr == ts.Boolean) {
-      this.Writer.Write("bool");
-    }
-    else if (tr == ts.Byte) {
-      this.Writer.Write("byte");
-    }
-    else if (tr == ts.Char) {
-      this.Writer.Write("char");
-    }
-    else if (tr == ts.Double) {
-      this.Writer.Write("double");
-    }
-    else if (tr == ts.Int16) {
-      this.Writer.Write("short");
-    }
-    else if (tr == ts.Int32) {
-      this.Writer.Write("int");
-    }
-    else if (tr == ts.Int64) {
-      this.Writer.Write("long");
-    }
-    else if (tr == ts.IntPtr) {
-      // Technically this is only the case if it's marked with [System.Runtime.CompilerServices.NativeIntegerAttribute]
-      this.Writer.Write("nint");
-    }
-    else if (tr == ts.SByte) {
-      this.Writer.Write("sbyte");
-    }
-    else if (tr == ts.Single) {
-      this.Writer.Write("float");
-    }
-    else if (tr == ts.String) {
-      this.Writer.Write("string");
-    }
-    else if (tr == ts.Object) {
-      this.Writer.Write("object");
-    }
-    else if (tr == ts.UInt16) {
-      this.Writer.Write("ushort");
-    }
-    else if (tr == ts.UInt32) {
-      this.Writer.Write("uint");
-    }
-    else if (tr == ts.UInt64) {
-      this.Writer.Write("ulong");
-    }
-    else if (tr == ts.UIntPtr) {
-      // Technically this is only the case if it's marked with [System.Runtime.CompilerServices.NativeIntegerAttribute]
-      this.Writer.Write("nuint");
-    }
-    else if (tr == ts.Void) {
-      this.Writer.Write("void");
-    }
-    else if (tr.IsCoreLibraryType("System", "Decimal")) {
-      this.Writer.Write("decimal");
-    }
-    else if (tr.IsCoreLibraryType("System", "ValueType")) {
-      this.Writer.Write("struct");
-    }
-    else {
-      return false;
-    }
-    return true;
-  }
-
   protected override void WriteCast(TypeDefinition targetType, Action writeValue) {
     this.Writer.Write('(');
     this.WriteTypeName(targetType);
@@ -772,9 +705,74 @@ internal class CSharpWriter : ReferenceWriter {
       this.WriteRequiredModifierTypeName(rmt);
       return;
     }
-    // Check for specific framework types that have a keyword form
-    if (this.WriteBuiltinTypeKeyword(tr)) {
-      return;
+    { // Check for specific framework types that have a keyword form
+      var isBuiltinType = true;
+      var ts = tr.Module.TypeSystem;
+      if (tr == ts.Boolean) {
+        this.Writer.Write("bool");
+      }
+      else if (tr == ts.Byte) {
+        this.Writer.Write("byte");
+      }
+      else if (tr == ts.Char) {
+        this.Writer.Write("char");
+      }
+      else if (tr == ts.Double) {
+        this.Writer.Write("double");
+      }
+      else if (tr == ts.Int16) {
+        this.Writer.Write("short");
+      }
+      else if (tr == ts.Int32) {
+        this.Writer.Write("int");
+      }
+      else if (tr == ts.Int64) {
+        this.Writer.Write("long");
+      }
+      else if (tr == ts.IntPtr) {
+        // Technically this is only the case if it's marked with [System.Runtime.CompilerServices.NativeIntegerAttribute]
+        this.Writer.Write("nint");
+      }
+      else if (tr == ts.SByte) {
+        this.Writer.Write("sbyte");
+      }
+      else if (tr == ts.Single) {
+        this.Writer.Write("float");
+      }
+      else if (tr == ts.String) {
+        this.Writer.Write("string");
+      }
+      else if (tr == ts.Object) {
+        this.Writer.Write("object");
+      }
+      else if (tr == ts.UInt16) {
+        this.Writer.Write("ushort");
+      }
+      else if (tr == ts.UInt32) {
+        this.Writer.Write("uint");
+      }
+      else if (tr == ts.UInt64) {
+        this.Writer.Write("ulong");
+      }
+      else if (tr == ts.UIntPtr) {
+        // Technically this is only the case if it's marked with [System.Runtime.CompilerServices.NativeIntegerAttribute]
+        this.Writer.Write("nuint");
+      }
+      else if (tr == ts.Void) {
+        this.Writer.Write("void");
+      }
+      else if (tr.IsCoreLibraryType("System", "Decimal")) {
+        this.Writer.Write("decimal");
+      }
+      else if (tr.IsCoreLibraryType("System", "ValueType")) {
+        this.Writer.Write("struct");
+      }
+      else {
+        isBuiltinType = false;
+      }
+      if (isBuiltinType) {
+        return;
+      }
     }
     // Otherwise, full stringification.
     if (tr.IsNested && includeDeclaringType) {
