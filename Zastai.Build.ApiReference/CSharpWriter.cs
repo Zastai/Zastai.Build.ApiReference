@@ -47,21 +47,23 @@ internal class CSharpWriter : ReferenceWriter {
     if (md.IsFamilyOrAssembly) {
       this.Writer.Write("protected internal ");
     }
+    if (md.IsStatic) {
+      this.Writer.Write("static ");
+    }
     if (md.IsAbstract) {
       this.Writer.Write("abstract ");
-    }
-    else if (md.IsStatic) {
-      this.Writer.Write("static ");
     }
     else {
       if (md.IsFinal) {
         this.Writer.Write("sealed ");
       }
-      if (md.IsVirtual && !md.IsNewSlot) {
-        this.Writer.Write("override ");
-      }
-      else if (md.IsVirtual && !md.IsFinal) {
-        this.Writer.Write("virtual ");
+      if (md.IsVirtual) {
+        if (!md.IsNewSlot) {
+          this.Writer.Write("override ");
+        }
+        else if (!md.IsFinal) {
+          this.Writer.Write("virtual ");
+        }
       }
     }
   }
