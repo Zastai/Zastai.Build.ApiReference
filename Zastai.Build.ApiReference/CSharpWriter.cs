@@ -103,7 +103,7 @@ internal class CSharpWriter : ReferenceWriter {
 
   protected override void WriteCast(TypeDefinition targetType, Action writeValue) {
     this.Writer.Write('(');
-    this.WriteTypeName(targetType);
+    this.WriteTypeName(targetType, targetType);
     this.Writer.Write(") ");
     writeValue();
   }
@@ -140,6 +140,7 @@ internal class CSharpWriter : ReferenceWriter {
   private void WriteCustomAttributeArgument(CustomAttributeArgument argument) {
     if (argument.Value is CustomAttributeArgument[] array) {
       this.Writer.Write("new ");
+      // FIXME: Does this need a context?
       this.WriteTypeName(argument.Type);
       this.Writer.Write(" { ");
       this.WriteSeparatedList(array, ", ", this.WriteCustomAttributeArgument);
@@ -175,7 +176,7 @@ internal class CSharpWriter : ReferenceWriter {
     this.WriteIndent(indent);
     this.WriteAttributes(ed);
     this.Writer.Write("event ");
-    this.WriteTypeName(ed.EventType);
+    this.WriteTypeName(ed.EventType, ed);
     this.Writer.Write(' ');
     this.Writer.Write(ed.Name);
     this.Writer.WriteLine(';');
@@ -185,7 +186,7 @@ internal class CSharpWriter : ReferenceWriter {
     this.WriteCustomAttributes(fd, indent);
     this.WriteIndent(indent);
     this.WriteAttributes(fd);
-    this.WriteTypeName(fd.FieldType);
+    this.WriteTypeName(fd.FieldType, fd);
     this.Writer.Write(' ');
     this.Writer.Write(fd.Name);
     if (fd.IsLiteral && fd.HasConstant) {
@@ -255,7 +256,7 @@ internal class CSharpWriter : ReferenceWriter {
           this.Writer.Write(", ");
         }
         this.WriteCustomAttributes(gpc, -1);
-        this.WriteTypeName(ct);
+        this.WriteTypeName(ct, gp);
         if (gpc.IsNullable()) {
           this.Writer.Write('?');
         }
@@ -294,6 +295,7 @@ internal class CSharpWriter : ReferenceWriter {
           this.WriteGenericParameter((GenericParameter) argument);
         }
         else {
+          // FIXME: Does this need a context?
           this.WriteTypeName(argument);
         }
         first = false;
@@ -386,7 +388,7 @@ internal class CSharpWriter : ReferenceWriter {
         this.Writer.Write(constructorName);
       }
       else {
-        this.WriteTypeName(md.ReturnType);
+        this.WriteTypeName(md.ReturnType, md.MethodReturnType);
         this.Writer.Write(" /* TODO: Map RunTime-Special Method Name Correctly */");
         this.Writer.Write(' ');
         this.Writer.Write(md.Name);
@@ -399,10 +401,10 @@ internal class CSharpWriter : ReferenceWriter {
         if (op is "Explicit" or "Implicit") {
           this.Writer.Write(op.ToLowerInvariant());
           this.Writer.Write(" operator ");
-          this.WriteTypeName(md.ReturnType);
+          this.WriteTypeName(md.ReturnType, md.MethodReturnType);
         }
         else {
-          this.WriteTypeName(md.ReturnType);
+          this.WriteTypeName(md.ReturnType, md.MethodReturnType);
           this.Writer.Write(" operator ");
           switch (op) {
             // Relational
@@ -489,13 +491,13 @@ internal class CSharpWriter : ReferenceWriter {
       }
       else {
         this.Writer.Write("/* TODO: Map Special Method Name Correctly */ ");
-        this.WriteTypeName(md.ReturnType);
+        this.WriteTypeName(md.ReturnType, md.MethodReturnType);
         this.Writer.Write(' ');
         this.Writer.Write(md.Name);
       }
     }
     else {
-      this.WriteTypeName(md.ReturnType);
+      this.WriteTypeName(md.ReturnType, md.MethodReturnType);
       this.Writer.Write(' ');
       this.Writer.Write(md.Name);
     }
@@ -532,7 +534,7 @@ internal class CSharpWriter : ReferenceWriter {
   private void WriteParameter(ParameterDefinition pd) {
     this.WriteCustomAttributes(pd, -1);
     this.WriteAttributes(pd);
-    this.WriteTypeName(pd.ParameterType, forOutParameter: pd.IsOut);
+    this.WriteTypeName(pd.ParameterType, pd);
     this.Writer.Write(' ');
     this.Writer.Write(pd.Name);
     if (!pd.HasDefault) {
@@ -592,7 +594,7 @@ internal class CSharpWriter : ReferenceWriter {
     this.WriteCustomAttributes(pd, indent);
     Trace.Assert(!pd.HasOtherMethods, $"Property has 'other methods' which is not yet supported: {pd}.");
     this.WriteIndent(indent);
-    this.WriteTypeName(pd.PropertyType);
+    this.WriteTypeName(pd.PropertyType, pd);
     this.Writer.Write(' ');
     // FIXME: Or should this only be done when the type has [System.Reflection.DefaultMemberAttribute("Item")]?
     if (pd.HasParameters && pd.Name == "Item") {
@@ -647,12 +649,15 @@ internal class CSharpWriter : ReferenceWriter {
     if (type.IsByReference && modifier.IsCoreLibraryType("System.Runtime.InteropServices", "InAttribute")) {
       // This signals a `ref readonly xxx` return type
       this.Writer.Write("ref readonly ");
+      // FIXME: Does this need a context?
       this.WriteTypeName(type.GetElementType());
     }
     else {
       // Actual meanings to be determined - put the modifier in a comment for now
+      // FIXME: Does this need a context?
       this.WriteTypeName(type);
       this.Writer.Write(" /* modified by: ");
+      // FIXME: Does this need a context?
       this.WriteTypeName(modifier);
       this.Writer.Write(" */");
     }
@@ -686,7 +691,7 @@ internal class CSharpWriter : ReferenceWriter {
       Trace.Fail($"Type {td} has unsupported classification: {td.Attributes}.");
     }
     this.Writer.Write(' ');
-    this.WriteTypeName(td, false);
+    this.WriteTypeName(td, td);
     {
       var isDerived = false;
       var baseType = td.BaseType;
@@ -717,6 +722,7 @@ internal class CSharpWriter : ReferenceWriter {
       if (baseType is not null) {
         isDerived = true;
         this.Writer.Write(" : ");
+        // FIXME: Does this need a context?
         this.WriteTypeName(baseType);
       }
       if (td.HasInterfaces) {
@@ -729,6 +735,7 @@ internal class CSharpWriter : ReferenceWriter {
             this.Writer.Write(", ");
           }
           this.WriteCustomAttributes(implementation, -1);
+          // FIXME: Does this need a context?
           this.WriteTypeName(implementation.InterfaceType);
           first = false;
         }
@@ -746,23 +753,32 @@ internal class CSharpWriter : ReferenceWriter {
     this.Writer.WriteLine('}');
   }
 
-  protected override void WriteTypeName(TypeReference tr, bool includeDeclaringType = true, bool forOutParameter = false) {
+  protected override void WriteTypeName(TypeReference tr, ICustomAttributeProvider? context = null) {
     // Check for pass-by-reference and make it ref T
     if (tr.IsByReference) {
-      if (!forOutParameter) {
+      if (context is ParameterDefinition { IsOut: true }) {
+        // omit the "ref" - it's covered by the "out"
+      }
+      else {
         this.Writer.Write("ref ");
       }
       tr = tr.GetElementType();
     }
     // Check for arrays and make them T[]
     if (tr.IsArray) {
-      this.WriteTypeName(tr.GetElementType(), includeDeclaringType);
+      this.WriteTypeName(tr.GetElementType(), context);
       this.Writer.Write("[]");
+      return;
+    }
+    // Check for pointers and make them T*
+    if (tr.IsPointer) {
+      this.WriteTypeName(tr.GetElementType(), context);
+      this.Writer.Write("*");
       return;
     }
     // Check for System.Nullable<T> and make it T?
     if (tr.TryUnwrapNullable(out var unwrapped)) {
-      this.WriteTypeName(unwrapped, includeDeclaringType);
+      this.WriteTypeName(unwrapped, context);
       this.Writer.Write('?');
       return;
     }
@@ -795,8 +811,7 @@ internal class CSharpWriter : ReferenceWriter {
       else if (tr == ts.Int64) {
         this.Writer.Write("long");
       }
-      else if (tr == ts.IntPtr) {
-        // Technically this is only the case if it's marked with [System.Runtime.CompilerServices.NativeIntegerAttribute]
+      else if (tr == ts.IntPtr && context.IsNativeInteger()) {
         this.Writer.Write("nint");
       }
       else if (tr == ts.SByte) {
@@ -809,7 +824,7 @@ internal class CSharpWriter : ReferenceWriter {
         this.Writer.Write("string");
       }
       else if (tr == ts.Object) {
-        this.Writer.Write("object");
+        this.Writer.Write(context.IsDynamic() ? "dynamic" : "object");
       }
       else if (tr == ts.UInt16) {
         this.Writer.Write("ushort");
@@ -820,8 +835,7 @@ internal class CSharpWriter : ReferenceWriter {
       else if (tr == ts.UInt64) {
         this.Writer.Write("ulong");
       }
-      else if (tr == ts.UIntPtr) {
-        // Technically this is only the case if it's marked with [System.Runtime.CompilerServices.NativeIntegerAttribute]
+      else if (tr == ts.UIntPtr && context.IsNativeInteger()) {
         this.Writer.Write("nuint");
       }
       else if (tr == ts.Void) {
@@ -838,10 +852,20 @@ internal class CSharpWriter : ReferenceWriter {
       }
     }
     // Otherwise, full stringification.
-    if (tr.IsNested && includeDeclaringType) {
-      // TODO: Possibly omit name of current type, or even all enclosing types?
-      this.WriteTypeName(tr.DeclaringType, includeDeclaringType);
-      this.Writer.Write('.');
+    if (tr.IsNested) {
+      var declaringType = tr.DeclaringType;
+      // Ignore enclosing types for qualification purposes
+      for (var currentType = this.CurrentType; currentType != null; currentType = currentType.DeclaringType) {
+        if (declaringType == currentType) {
+          declaringType = null;
+          break;
+        }
+      }
+      if (declaringType is not null) {
+        // FIXME: Does this need a context?
+        this.WriteTypeName(tr.DeclaringType);
+        this.Writer.Write('.');
+      }
     }
     else if (!string.IsNullOrEmpty(tr.Namespace) && tr.Namespace != this.CurrentNamespace) {
       this.Writer.Write(tr.Namespace);
@@ -860,6 +884,7 @@ internal class CSharpWriter : ReferenceWriter {
 
   protected override void WriteTypeOf(TypeReference tr) {
     this.Writer.Write("typeof(");
+    // FIXME: Does this need a context?
     this.WriteTypeName(tr);
     this.Writer.Write(')');
   }

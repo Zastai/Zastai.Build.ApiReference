@@ -74,10 +74,36 @@ internal static class CecilUtils {
   public static bool IsCoreLibraryType(this TypeReference tr, string? ns, string name)
     => tr.IsCoreLibraryType() && tr.Namespace == ns && tr.Name == name;
 
+  public static bool IsDynamic(this ICustomAttributeProvider? cap) {
+    if (cap is null || !cap.HasCustomAttributes) {
+      return false;
+    }
+    foreach (var ca in cap.CustomAttributes) {
+      // This is also not a core library type; it's in System.Linq.Expressions, of all places.
+      if (ca.AttributeType.FullName == "System.Runtime.CompilerServices.DynamicAttribute") {
+        return true;
+      }
+    }
+    return false;
+  }
+
   public static bool IsLocalType(this TypeReference tr) => tr.Scope == tr.Module;
 
   public static bool IsLocalType(this TypeReference tr, string? ns, string name)
     => tr.IsLocalType() && tr.Namespace == ns && tr.Name == name;
+
+  public static bool IsNativeInteger(this ICustomAttributeProvider? cap) {
+    if (cap is null || !cap.HasCustomAttributes) {
+      return false;
+    }
+    foreach (var ca in cap.CustomAttributes) {
+      // These attributes are emitted in the assembly itself
+      if (ca.AttributeType.IsLocalType("System.Runtime.CompilerServices", "NativeIntegerAttribute")) {
+        return true;
+      }
+    }
+    return false;
+  }
 
   public static bool IsNotNull(this ICustomAttributeProvider cap) => cap.HasNullableFlag(1);
 
@@ -156,11 +182,21 @@ internal static class CecilUtils {
           break;
       }
     }
-    else if (attributeType.IsCompilerGenerated()) {
-      // Assume compiler-generated attributes are never relevant to API.
-      // This includes [Nullable], [NullableContext] and [NullablePublicOnly]; the compiler emits those inside the assembly - it is
-      // not a framework type. (Which allows it to work for assemblies targeting older framework versions.)
-      return false;
+    else if (attributeType.Namespace == "System.Runtime.CompilerServices") {
+      // Some of these live outside the core library
+      switch (attributeType.Name) {
+        case "IsUnmanagedAttribute" when attributeType.IsLocalType():
+          // This is handled as part of generic type constraint handling.
+          return false;
+        case "DynamicAttribute":
+        case "NativeIntegerAttribute" when attributeType.IsLocalType():
+          // These are handled as part of type name handling.
+          return false;
+        case "NullableAttribute" when attributeType.IsLocalType():
+        case "NullableContextAttribute" when attributeType.IsLocalType():
+          // These are handled as part of nullable reference type support.
+          return false;
+      }
     }
     // Assume public API by default.
     return true;

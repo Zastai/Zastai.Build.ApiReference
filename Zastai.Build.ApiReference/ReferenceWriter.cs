@@ -4,6 +4,8 @@ internal abstract class ReferenceWriter {
 
   protected string? CurrentNamespace { get; private set; }
 
+  protected TypeDefinition? CurrentType { get; private set; }
+
   private static char[]? _indentationSpaces;
 
   protected virtual int TopLevelTypeIndent => 2;
@@ -12,6 +14,13 @@ internal abstract class ReferenceWriter {
 
   protected ReferenceWriter(TextWriter writer) {
     this.Writer = writer;
+  }
+
+  private void SaveAndWriteType(TypeDefinition td, int indent) {
+    var parentType = this.CurrentType;
+    this.CurrentType = td;
+    this.WriteType(td, indent);
+    this.CurrentType = parentType;
   }
 
   protected virtual void WriteAssemblyAttributeFooter(AssemblyDefinition ad) {
@@ -279,7 +288,7 @@ internal abstract class ReferenceWriter {
     }
     foreach (var type in nestedTypes) {
       this.Writer.WriteLine();
-      this.WriteType(type.Value, indent);
+      this.SaveAndWriteType(type.Value, indent);
     }
   }
 
@@ -381,7 +390,7 @@ internal abstract class ReferenceWriter {
       foreach (var type in ns.Value) {
         var td = type.Value;
         this.WriteTypeHeader(td);
-        this.WriteType(td, this.TopLevelTypeIndent);
+        this.SaveAndWriteType(td, this.TopLevelTypeIndent);
         this.WriteTypeFooter(td);
       }
       this.WriteNamespaceFooter();
@@ -398,7 +407,7 @@ internal abstract class ReferenceWriter {
 
   protected abstract void WriteType(TypeDefinition td, int indent);
 
-  protected abstract void WriteTypeName(TypeReference tr, bool includeDeclaringType = true, bool forOutParameter = false);
+  protected abstract void WriteTypeName(TypeReference tr, ICustomAttributeProvider? context = null);
 
   protected abstract void WriteTypeOf(TypeReference tr);
 
