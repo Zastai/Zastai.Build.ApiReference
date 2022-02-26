@@ -9,6 +9,31 @@ namespace Zastai.Build.ApiReference;
 [PublicAPI]
 internal static class CecilUtils {
 
+  private static bool HasNullabilityFlag(this ICustomAttributeProvider cap, string attribute, byte value) {
+    if (!cap.HasCustomAttributes) {
+      return false;
+    }
+    foreach (var ca in cap.CustomAttributes) {
+      // These attributes are emitted in the assembly itself
+      if (ca.AttributeType.IsLocalType("System.Runtime.CompilerServices", attribute)) {
+        if (ca.HasConstructorArguments && ca.ConstructorArguments.Count == 1) {
+          var arg = ca.ConstructorArguments[0];
+          if (arg.Type == arg.Type.Module.TypeSystem.Byte) {
+            return arg.Value is byte b && b == value;
+          }
+        }
+        return false;
+      }
+    }
+    return false;
+  }
+
+  private static bool HasNullableContextFlag(this ICustomAttributeProvider cap, byte value)
+    => cap.HasNullabilityFlag("NullableContextAttribute", value);
+
+  private static bool HasNullableFlag(this ICustomAttributeProvider cap, byte value)
+    => cap.HasNullabilityFlag("NullableAttribute", value);
+
   public static MethodDefinition? IfPublicApi(this MethodDefinition? method) {
     if (method is null) {
       return null;
@@ -48,6 +73,19 @@ internal static class CecilUtils {
 
   public static bool IsCoreLibraryType(this TypeReference tr, string? ns, string name)
     => tr.IsCoreLibraryType() && tr.Namespace == ns && tr.Name == name;
+
+  public static bool IsLocalType(this TypeReference tr) => tr.Scope == tr.Module;
+
+  public static bool IsLocalType(this TypeReference tr, string? ns, string name)
+    => tr.IsLocalType() && tr.Namespace == ns && tr.Name == name;
+
+  public static bool IsNotNull(this ICustomAttributeProvider cap) => cap.HasNullableFlag(1);
+
+  public static bool IsNotNullContext(this ICustomAttributeProvider cap) => cap.HasNullableContextFlag(1);
+
+  public static bool IsNullable(this ICustomAttributeProvider cap) => cap.HasNullableFlag(2);
+
+  public static bool IsNullableContext(this ICustomAttributeProvider cap) => cap.HasNullableContextFlag(2);
 
   public static bool IsParamArray(this ParameterDefinition pd)
     => pd.HasCustomAttributes && pd.CustomAttributes.Any(ca => ca.AttributeType.IsCoreLibraryType("System", "ParamArrayAttribute"));
@@ -150,6 +188,19 @@ internal static class CecilUtils {
   public static bool IsReadOnly(this PropertyDefinition pd) => CecilUtils.IsReadOnlyInternal(pd);
 
   public static bool IsReadOnly(this TypeDefinition td) => CecilUtils.IsReadOnlyInternal(td);
+
+  public static bool IsUnmanaged(this GenericParameter gp) {
+    if (!gp.HasCustomAttributes) {
+      return false;
+    }
+    foreach (var ca in gp.CustomAttributes) {
+      // These attributes are emitted in the assembly itself
+      if (ca.AttributeType.IsLocalType("System.Runtime.CompilerServices", "IsUnmanagedAttribute")) {
+        return true;
+      }
+    }
+    return false;
+  }
 
   private static class Obsolete {
 

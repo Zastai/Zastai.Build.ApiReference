@@ -195,7 +195,7 @@ internal class CSharpWriter : ReferenceWriter {
     this.Writer.WriteLine(';');
   }
 
-  protected override void WriteGenericParameter(GenericParameter gp) {
+  private void WriteGenericParameter(GenericParameter gp) {
     if (gp.IsCovariant) {
       this.Writer.Write("out ");
     }
@@ -205,20 +205,76 @@ internal class CSharpWriter : ReferenceWriter {
     this.Writer.Write(gp.Name);
   }
 
-  protected override void WriteGenericParameterConstraints(GenericParameter parameter) {
-    if (!parameter.HasConstraints) {
+  protected override void WriteGenericParameterConstraints(GenericParameter gp, int indent) {
+    // Some constraints (like "class" and "new()") are stored as attributes.
+    // However, there seems to be no difference between "class" and "class?", and the "notnull" constraint does not seem to be
+    // reflected in the assembly at all.
+    if (!gp.HasConstraints && !gp.HasReferenceTypeConstraint && !gp.HasDefaultConstructorConstraint) {
       return;
     }
-    this.Writer.Write(" where ");
-    this.Writer.Write(parameter.Name);
+    this.Writer.WriteLine();
+    this.WriteIndent(indent);
+    this.Writer.Write("where ");
+    this.Writer.Write(gp.Name);
     this.Writer.Write(" : ");
     var first = true;
-    foreach (var constraint in parameter.Constraints) {
+    var isValueType = gp.HasNotNullableValueTypeConstraint;
+    var isUnmanaged = isValueType && gp.IsUnmanaged();
+    if (gp.HasReferenceTypeConstraint) {
+      this.Writer.Write("class");
+      first = false;
+    }
+    if (gp.HasConstraints) {
+      foreach (var gpc in gp.Constraints) {
+        var ct = gpc.ConstraintType;
+        if (first && isValueType) {
+          if (isUnmanaged) {
+            // Expectation: First constraint is on ValueType modified by UnmanagedType; if so, write that as "unmanaged"
+            // Note that UnmanagedType is neither a core library type nor a locally synthesized one.
+            if (ct is RequiredModifierType rmt && rmt.ElementType.IsCoreLibraryType("System", "ValueType") &&
+                rmt.ModifierType.FullName == "System.Runtime.InteropServices.UnmanagedType") {
+              this.WriteCustomAttributes(gpc, -1);
+              this.Writer.Write("unmanaged");
+              first = false;
+              isValueType = false;
+              continue;
+            }
+          }
+          else {
+            // Expectation: First constraint is on ValueType; if so, write that as "struct"
+            if (ct.IsCoreLibraryType("System", "ValueType")) {
+              this.WriteCustomAttributes(gpc, -1);
+              this.Writer.Write("struct");
+              first = false;
+              isValueType = false;
+              continue;
+            }
+          }
+        }
+        if (!first) {
+          this.Writer.Write(", ");
+        }
+        this.WriteCustomAttributes(gpc, -1);
+        this.WriteTypeName(ct);
+        if (gpc.IsNullable()) {
+          this.Writer.Write('?');
+        }
+        first = false;
+      }
+    }
+    // These should have been issued above, but make sure
+    if (isValueType) {
       if (!first) {
         this.Writer.Write(", ");
       }
-      this.WriteGenericParameterConstraint(constraint);
+      this.Writer.Write(isUnmanaged ? "unmanaged" : "struct");
       first = false;
+    }
+    if (gp.HasDefaultConstructorConstraint && !gp.HasNotNullableValueTypeConstraint) {
+      if (!first) {
+        this.Writer.Write(", ");
+      }
+      this.Writer.Write("new()");
     }
   }
 
@@ -445,7 +501,7 @@ internal class CSharpWriter : ReferenceWriter {
     }
     this.WriteGenericParameters(md);
     this.WriteParameters(md);
-    this.WriteGenericParameterConstraints(md);
+    this.WriteGenericParameterConstraints(md, indent + 2);
     this.Writer.WriteLine(";");
   }
 
@@ -588,11 +644,7 @@ internal class CSharpWriter : ReferenceWriter {
     // These are weird things
     var type = rmt.ElementType;
     var modifier = rmt.ModifierType;
-    // This is for "where T : unmanaged"; UnmanagedType is not a core library type though, it's in System.Runtime.InteropServices.
-    if (type.IsCoreLibraryType("System", "ValueType") && modifier.FullName == "System.Runtime.InteropServices.UnmanagedType") {
-      this.Writer.Write("unmanaged");
-    }
-    else if (type.IsByReference && modifier.IsCoreLibraryType("System.Runtime.InteropServices", "InAttribute")) {
+    if (type.IsByReference && modifier.IsCoreLibraryType("System.Runtime.InteropServices", "InAttribute")) {
       // This signals a `ref readonly xxx` return type
       this.Writer.Write("ref readonly ");
       this.WriteTypeName(type.GetElementType());
@@ -682,7 +734,7 @@ internal class CSharpWriter : ReferenceWriter {
         }
       }
     }
-    this.WriteGenericParameterConstraints(td);
+    this.WriteGenericParameterConstraints(td, indent + 2);
     this.Writer.WriteLine(" {");
     this.WriteFields(td, indent + 2);
     this.WriteProperties(td, indent + 2);
@@ -777,9 +829,6 @@ internal class CSharpWriter : ReferenceWriter {
       }
       else if (tr.IsCoreLibraryType("System", "Decimal")) {
         this.Writer.Write("decimal");
-      }
-      else if (tr.IsCoreLibraryType("System", "ValueType")) {
-        this.Writer.Write("struct");
       }
       else {
         isBuiltinType = false;

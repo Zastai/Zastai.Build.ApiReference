@@ -173,21 +173,14 @@ internal abstract class ReferenceWriter {
     this.WriteCommentLine("=== Generated API Reference === DO NOT EDIT BY HAND ===");
   }
 
-  protected abstract void WriteGenericParameter(GenericParameter gp);
+  protected abstract void WriteGenericParameterConstraints(GenericParameter gp, int indent);
 
-  protected void WriteGenericParameterConstraint(GenericParameterConstraint constraint) {
-    this.WriteCustomAttributes(constraint, -1);
-    this.WriteTypeName(constraint.ConstraintType);
-  }
-
-  protected abstract void WriteGenericParameterConstraints(GenericParameter parameter);
-
-  protected void WriteGenericParameterConstraints(IGenericParameterProvider provider) {
+  protected void WriteGenericParameterConstraints(IGenericParameterProvider provider, int indent) {
     if (!provider.HasGenericParameters) {
       return;
     }
     foreach (var parameter in provider.GenericParameters) {
-      this.WriteGenericParameterConstraints(parameter);
+      this.WriteGenericParameterConstraints(parameter, indent);
     }
   }
 
