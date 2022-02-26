@@ -9,18 +9,47 @@ namespace Zastai.Build.ApiReference;
 [PublicAPI]
 internal static class CecilUtils {
 
-  private static bool HasNullabilityFlag(this ICustomAttributeProvider cap, string attribute, byte value) {
-    if (!cap.HasCustomAttributes) {
+  public static string?[]? GetTupleElementNames(this ICustomAttributeProvider? cap) {
+    if (cap is null || !cap.HasCustomAttributes) {
+      return null;
+    }
+    foreach (var ca in cap.CustomAttributes) {
+      if (ca.AttributeType.IsCoreLibraryType("System.Runtime.CompilerServices", "TupleElementNamesAttribute")) {
+        if (ca.HasConstructorArguments && ca.ConstructorArguments.Count == 1) {
+          var arg = ca.ConstructorArguments[0];
+          if (arg.Value is CustomAttributeArgument[] values) {
+            var names = new string?[values.Length];
+            var idx = 0;
+            foreach (var value in values) {
+              if (value.Type == value.Type.Module.TypeSystem.String && value.Value is string name) {
+                names[idx] = name;
+              }
+              ++idx;
+            }
+            return names;
+          }
+        }
+        return null;
+      }
+    }
+    return null;
+  }
+
+  private static bool HasNullabilityFlag(this ICustomAttributeProvider? cap, string attribute, byte value, int idx) {
+    if (cap is null || !cap.HasCustomAttributes) {
       return false;
     }
     foreach (var ca in cap.CustomAttributes) {
-      // These attributes are emitted in the assembly itself
       if (ca.AttributeType.IsLocalType("System.Runtime.CompilerServices", attribute)) {
         if (ca.HasConstructorArguments && ca.ConstructorArguments.Count == 1) {
           var arg = ca.ConstructorArguments[0];
-          if (arg.Type == arg.Type.Module.TypeSystem.Byte) {
-            return arg.Value is byte b && b == value;
+          if (arg.Value is CustomAttributeArgument[] values && values.Length > idx) {
+            arg = values[idx];
           }
+          else if (idx != 0) {
+            return false;
+          }
+          return arg.Type == arg.Type.Module.TypeSystem.Byte && arg.Value is byte b && b == value;
         }
         return false;
       }
@@ -28,11 +57,8 @@ internal static class CecilUtils {
     return false;
   }
 
-  private static bool HasNullableContextFlag(this ICustomAttributeProvider cap, byte value)
-    => cap.HasNullabilityFlag("NullableContextAttribute", value);
-
-  private static bool HasNullableFlag(this ICustomAttributeProvider cap, byte value)
-    => cap.HasNullabilityFlag("NullableAttribute", value);
+  private static bool HasNullableFlag(this ICustomAttributeProvider? cap, byte value, int idx)
+    => cap.HasNullabilityFlag("NullableAttribute", value, idx);
 
   public static MethodDefinition? IfPublicApi(this MethodDefinition? method) {
     if (method is null) {
@@ -74,14 +100,26 @@ internal static class CecilUtils {
   public static bool IsCoreLibraryType(this TypeReference tr, string? ns, string name)
     => tr.IsCoreLibraryType() && tr.Namespace == ns && tr.Name == name;
 
-  public static bool IsDynamic(this ICustomAttributeProvider? cap) {
+  public static bool IsDynamic(this ICustomAttributeProvider? cap, int idx) {
     if (cap is null || !cap.HasCustomAttributes) {
       return false;
     }
     foreach (var ca in cap.CustomAttributes) {
-      // This is also not a core library type; it's in System.Linq.Expressions, of all places.
       if (ca.AttributeType.FullName == "System.Runtime.CompilerServices.DynamicAttribute") {
-        return true;
+        if (idx == 0 && !ca.HasConstructorArguments) {
+          return true;
+        }
+        if (ca.HasConstructorArguments && ca.ConstructorArguments.Count == 1) {
+          var arg = ca.ConstructorArguments[0];
+          if (arg.Value is CustomAttributeArgument[] values && values.Length > idx) {
+            arg = values[idx];
+          }
+          else if (idx != 0) {
+            return false;
+          }
+          return arg.Type == arg.Type.Module.TypeSystem.Boolean && arg.Value is true;
+        }
+        return false;
       }
     }
     return false;
@@ -92,26 +130,32 @@ internal static class CecilUtils {
   public static bool IsLocalType(this TypeReference tr, string? ns, string name)
     => tr.IsLocalType() && tr.Namespace == ns && tr.Name == name;
 
-  public static bool IsNativeInteger(this ICustomAttributeProvider? cap) {
+  public static bool IsNativeInteger(this ICustomAttributeProvider? cap, int idx) {
     if (cap is null || !cap.HasCustomAttributes) {
       return false;
     }
     foreach (var ca in cap.CustomAttributes) {
-      // These attributes are emitted in the assembly itself
       if (ca.AttributeType.IsLocalType("System.Runtime.CompilerServices", "NativeIntegerAttribute")) {
-        return true;
+        if (idx == 0 && !ca.HasConstructorArguments) {
+          return true;
+        }
+        if (ca.HasConstructorArguments && ca.ConstructorArguments.Count == 1) {
+          var arg = ca.ConstructorArguments[0];
+          if (arg.Value is CustomAttributeArgument[] values && values.Length > idx) {
+            arg = values[idx];
+          }
+          else if (idx != 0) {
+            return false;
+          }
+          return arg.Type == arg.Type.Module.TypeSystem.Boolean && arg.Value is true;
+        }
+        return false;
       }
     }
     return false;
   }
 
-  public static bool IsNotNull(this ICustomAttributeProvider cap) => cap.HasNullableFlag(1);
-
-  public static bool IsNotNullContext(this ICustomAttributeProvider cap) => cap.HasNullableContextFlag(1);
-
-  public static bool IsNullable(this ICustomAttributeProvider cap) => cap.HasNullableFlag(2);
-
-  public static bool IsNullableContext(this ICustomAttributeProvider cap) => cap.HasNullableContextFlag(2);
+  public static bool IsNullable(this ICustomAttributeProvider? cap, int idx = 0) => cap.HasNullableFlag(2, idx);
 
   public static bool IsParamArray(this ParameterDefinition pd)
     => pd.HasCustomAttributes && pd.CustomAttributes.Any(ca => ca.AttributeType.IsCoreLibraryType("System", "ParamArrayAttribute"));
@@ -178,17 +222,20 @@ internal static class CecilUtils {
               // - method & property definitions (for readonly struct members)
               // - return types
               return false;
+            case "TupleElementNamesAttribute":
+              // This is handled as part of type name handling.
+              return false;
           }
           break;
       }
     }
     else if (attributeType.Namespace == "System.Runtime.CompilerServices") {
-      // Some of these live outside the core library
+      // Some of these live outside the core library, and some are emitted in the assembly as part of compilation
       switch (attributeType.Name) {
         case "IsUnmanagedAttribute" when attributeType.IsLocalType():
           // This is handled as part of generic type constraint handling.
           return false;
-        case "DynamicAttribute":
+        case "DynamicAttribute": // in System.Linq.Expressions
         case "NativeIntegerAttribute" when attributeType.IsLocalType():
           // These are handled as part of type name handling.
           return false;
@@ -236,6 +283,12 @@ internal static class CecilUtils {
       }
     }
     return false;
+  }
+
+  public static string NonGenericName(this TypeReference tr) {
+    var name = tr.Name;
+    var backTick = name.IndexOf('`');
+    return backTick >= 0 ? name.Substring(0, backTick) : name;
   }
 
   private static class Obsolete {

@@ -379,13 +379,7 @@ internal class CSharpWriter : ReferenceWriter {
     if (md.IsRuntimeSpecialName) {
       // Runtime-Special Names
       if (md.Name is ".ctor" or ".cctor") {
-        // Just the type name, but without the "`n" suffix on generic types.
-        var constructorName = md.DeclaringType.Name;
-        var backtick = constructorName.IndexOf('`');
-        if (backtick > 0) {
-          constructorName = constructorName.Substring(0, backtick);
-        }
-        this.Writer.Write(constructorName);
+        this.Writer.Write(md.DeclaringType.NonGenericName());
       }
       else {
         this.WriteTypeName(md.ReturnType, md.MethodReturnType);
@@ -642,28 +636,6 @@ internal class CSharpWriter : ReferenceWriter {
     this.Writer.WriteLine(';');
   }
 
-  protected override void WriteRequiredModifierTypeName(RequiredModifierType rmt) {
-    // These are weird things
-    var type = rmt.ElementType;
-    var modifier = rmt.ModifierType;
-    if (type.IsByReference && modifier.IsCoreLibraryType("System.Runtime.InteropServices", "InAttribute")) {
-      // This signals a `ref readonly xxx` return type
-      this.Writer.Write("ref readonly ");
-      // FIXME: Does this need a context?
-      // Note: NOT tr.GetElementType(), because that does not handle generic types properly
-      this.WriteTypeName(((ByReferenceType) type).ElementType);
-    }
-    else {
-      // Actual meanings to be determined - put the modifier in a comment for now
-      // FIXME: Does this need a context?
-      this.WriteTypeName(type);
-      this.Writer.Write(" /* modified by: ");
-      // FIXME: Does this need a context?
-      this.WriteTypeName(modifier);
-      this.Writer.Write(" */");
-    }
-  }
-
   protected override void WriteType(TypeDefinition td, int indent) {
     this.WriteCustomAttributes(td, indent);
     Trace.Assert(td.IsPublicApi(), $"Type {td} has unsupported access: {td.Attributes}.");
@@ -754,35 +726,45 @@ internal class CSharpWriter : ReferenceWriter {
     this.Writer.WriteLine('}');
   }
 
-  protected override void WriteTypeName(TypeReference tr, ICustomAttributeProvider? context = null) {
+  private void WriteTypeName(TypeReference tr, ref int dynamicIndex, ref int integerIndex, ICustomAttributeProvider? context) {
     // Note: these checks used to use things like `IsArray` and then `GetElementType()` to get at the contents. However,
     // `GetElementType()` gets the _innermost_ element type (https://github.com/jbevain/cecil/issues/841). So given we need casts
     // anyway to access the `ElementType` property, and this isn't very performance-critical code, we just use pattern matching to
     // keep things readable.
     switch (tr) {
-      case ByReferenceType brt: // => ref T
-        // omit the "ref" for "out" parameters - it's covered by the "out"
-        if (context is not ParameterDefinition { IsOut: true }) {
-          this.Writer.Write("ref ");
-        }
-        tr = brt.ElementType;
-        break;
-      case ArrayType at: // => T[]
-        this.WriteTypeName(at.ElementType, context);
+      case ArrayType at: { // => T[]
+        // Any reference type, including an array, gets an entry in [Dynamic]
+        ++dynamicIndex;
+        this.WriteTypeName(at.ElementType, ref dynamicIndex, ref integerIndex, context);
         this.Writer.Write("[]");
         return;
+      }
       case PointerType pt: // => T*
-        this.WriteTypeName(pt.ElementType, context);
+        this.WriteTypeName(pt.ElementType, ref dynamicIndex, ref integerIndex, context);
         this.Writer.Write("*");
         return;
-      case RequiredModifierType rmt:
+      case RequiredModifierType rmt: {
         // These are weird things
-        this.WriteRequiredModifierTypeName(rmt);
+        var type = rmt.ElementType;
+        var modifier = rmt.ModifierType;
+        if (modifier.IsCoreLibraryType("System.Runtime.InteropServices", "InAttribute") && type is ByReferenceType brt) {
+          // This signals a `ref readonly xxx` return type
+          this.Writer.Write("ref readonly ");
+          tr = brt.ElementType;
+          break;
+        }
+        // Actual meanings to be determined - put the modifier in a comment for now
+        this.WriteTypeName(type, ref dynamicIndex, ref integerIndex, context);
+        this.Writer.Write(" /* modified by: ");
+        // FIXME: Does this need a context? Should it affect include the indexes?
+        this.WriteTypeName(modifier);
+        this.Writer.Write(" */");
         return;
+      }
     }
     // Check for System.Nullable<T> and make it T?
     if (tr.TryUnwrapNullable(out var unwrapped)) {
-      this.WriteTypeName(unwrapped, context);
+      this.WriteTypeName(unwrapped, ref dynamicIndex, ref integerIndex, context);
       this.Writer.Write('?');
       return;
     }
@@ -810,7 +792,7 @@ internal class CSharpWriter : ReferenceWriter {
       else if (tr == ts.Int64) {
         this.Writer.Write("long");
       }
-      else if (tr == ts.IntPtr && context.IsNativeInteger()) {
+      else if (tr == ts.IntPtr && context.IsNativeInteger(integerIndex++)) {
         this.Writer.Write("nint");
       }
       else if (tr == ts.SByte) {
@@ -823,7 +805,7 @@ internal class CSharpWriter : ReferenceWriter {
         this.Writer.Write("string");
       }
       else if (tr == ts.Object) {
-        this.Writer.Write(context.IsDynamic() ? "dynamic" : "object");
+        this.Writer.Write(context.IsDynamic(dynamicIndex) ? "dynamic" : "object");
       }
       else if (tr == ts.UInt16) {
         this.Writer.Write("ushort");
@@ -834,7 +816,7 @@ internal class CSharpWriter : ReferenceWriter {
       else if (tr == ts.UInt64) {
         this.Writer.Write("ulong");
       }
-      else if (tr == ts.UIntPtr && context.IsNativeInteger()) {
+      else if (tr == ts.UIntPtr && context.IsNativeInteger(integerIndex++)) {
         this.Writer.Write("nuint");
       }
       else if (tr == ts.Void) {
@@ -847,9 +829,51 @@ internal class CSharpWriter : ReferenceWriter {
         isBuiltinType = false;
       }
       if (isBuiltinType) {
+        ++dynamicIndex;
         return;
       }
     }
+    // Check for C# tuples (i.e. System.ValueTuple)
+    if (tr.IsGenericInstance && tr.IsCoreLibraryType() && tr.Namespace == "System" && tr.Name.StartsWith("ValueTuple`")) {
+      this.Writer.Write('(');
+      var element = 0;
+      var elementNames = context.GetTupleElementNames();
+    moreGenericArguments:
+      ++dynamicIndex;
+      var genericArguments = ((GenericInstanceType) tr).GenericArguments;
+      var item = 0;
+      foreach (var ga in genericArguments) {
+        if (++item == 8 && tr.Name == "ValueTuple`8") {
+          // a 10-element tuple is an 8-element tuple where the 8th element is a 3-element tuple
+          if (ga.IsGenericInstance && ga.IsCoreLibraryType() && ga.Namespace == "System" && ga.Name.StartsWith("ValueTuple`")) {
+            // switch to this one and continue processing
+            tr = ga;
+            goto moreGenericArguments;
+          }
+        }
+        if (element > 0) {
+          this.Writer.Write(", ");
+        }
+        this.WriteTypeName(ga, ref dynamicIndex, ref integerIndex, context);
+        if (elementNames is not null) {
+          if (element >= elementNames.Length) {
+            this.Writer.Write(" /* name missing */");
+          }
+          else {
+            var elementName = elementNames[element];
+            if (elementName is not null) {
+              this.Writer.Write(' ');
+              this.Writer.Write(elementName);
+            }
+          }
+        }
+        ++element;
+      }
+      this.Writer.Write(')');
+      return;
+    }
+    // Any type gets an entry in [Dynamic]
+    ++dynamicIndex;
     // Otherwise, full stringification.
     if (tr.IsNested) {
       var declaringType = tr.DeclaringType;
@@ -861,7 +885,7 @@ internal class CSharpWriter : ReferenceWriter {
         }
       }
       if (declaringType is not null) {
-        // FIXME: Does this need a context?
+        // FIXME: Does this need a context? Should it continue our indexes?
         this.WriteTypeName(tr.DeclaringType);
         this.Writer.Write('.');
       }
@@ -870,15 +894,35 @@ internal class CSharpWriter : ReferenceWriter {
       this.Writer.Write(tr.Namespace);
       this.Writer.Write('.');
     }
-    var name = tr.Name;
-    // Strip off the part after a backtick. This used to assert that only generic types have a backtick, but non-generic nested
-    // types inside a generic type can be generic while not themselves having a backtick.
-    var backTick = name.IndexOf('`');
-    if (backTick >= 0) {
-      name = name.Substring(0, backTick);
-    }
-    this.Writer.Write(name);
+    this.Writer.Write(tr.NonGenericName());
     this.WriteGenericParameters(tr);
+  }
+
+  protected override void WriteTypeName(TypeReference tr, ICustomAttributeProvider? context = null) {
+    // ref X can only occur on outer types; can't have an array of `ref int` or a `Func<ref int>`, so handle that here
+    if (tr is ByReferenceType brt) { // => ref T
+      // omit the "ref" for "out" parameters - it's covered by the "out"
+      if (context is not ParameterDefinition { IsOut: true }) {
+        this.Writer.Write("ref ");
+      }
+      tr = brt.ElementType;
+    }
+    // 3 things we care about are handled by attributes on the context:
+    // - [Dynamic] to distinguish `dynamic` from `object`
+    //   - in simple/normal context this has no arguments
+    //   - in a context with multiple types (`dynamic[]`, tuple, ...) it has an array with 1 bool argument per type
+    // - [NativeInteger] to distinguish n[u]int from [U]IntPtr
+    //   - in simple/normal context this has no arguments
+    //   - in a context with multiple types it has an array with 1 bool argument per `[U]IntPtr`
+    // - [Nullable] for nullable reference types
+    //   - in normal context this has one argument
+    //   - in a context with multiple types it has an array with one byte argument per reference type
+    //   - but there is also some degree of inheritance, using [NullableContext]
+    // As a result, we need to keep track of separate indexes for each type.
+    // However, nullable reference types are a bit of a nightmare with [NullableContext] also in play, so leave those off for now.
+    var dynamicIndex = 0;
+    var integerIndex = 0;
+    this.WriteTypeName(tr, ref dynamicIndex, ref integerIndex, context);
   }
 
   protected override void WriteTypeOf(TypeReference tr) {

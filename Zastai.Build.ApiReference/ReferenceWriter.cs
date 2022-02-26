@@ -351,8 +351,6 @@ internal abstract class ReferenceWriter {
     this.WriteFileFooter(ad);
   }
 
-  protected abstract void WriteRequiredModifierTypeName(RequiredModifierType rmt);
-
   protected void WriteSeparatedList<T>(IEnumerable<T> items, string separator, Action<T> write) {
     var first = true;
     foreach (var item in items) {
