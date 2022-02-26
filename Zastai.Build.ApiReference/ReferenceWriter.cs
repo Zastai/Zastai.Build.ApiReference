@@ -196,7 +196,7 @@ internal abstract class ReferenceWriter {
   protected abstract void WriteGenericParameters(IGenericParameterProvider provider);
 
   protected void WriteIndent(int indent) {
-    if (ReferenceWriter._indentationSpaces == null || indent > ReferenceWriter._indentationSpaces.Length) {
+    if (ReferenceWriter._indentationSpaces is null || indent > ReferenceWriter._indentationSpaces.Length) {
       ReferenceWriter._indentationSpaces = new string(' ', Math.Max(64, 2 * indent)).ToCharArray();
     }
     this.Writer.Write(ReferenceWriter._indentationSpaces, 0, indent);

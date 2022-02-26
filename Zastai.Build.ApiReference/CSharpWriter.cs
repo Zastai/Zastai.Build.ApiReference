@@ -6,7 +6,7 @@ internal class CSharpWriter : ReferenceWriter {
   }
 
   private void WriteAttributes(EventDefinition ed) {
-    if (ed.AddMethod != null) {
+    if (ed.AddMethod is not null) {
       this.WriteAttributes(ed.AddMethod);
     }
     else {
@@ -544,7 +544,7 @@ internal class CSharpWriter : ReferenceWriter {
     if (!pd.HasConstant) {
       this.Writer.Write("/* constant value missing */");
     }
-    else if (pd.Constant == null && pd.ParameterType.IsValueType) {
+    else if (pd.Constant is null && pd.ParameterType.IsValueType) {
       this.Writer.Write("default");
     }
     else {
@@ -650,7 +650,8 @@ internal class CSharpWriter : ReferenceWriter {
       // This signals a `ref readonly xxx` return type
       this.Writer.Write("ref readonly ");
       // FIXME: Does this need a context?
-      this.WriteTypeName(type.GetElementType());
+      // Note: NOT tr.GetElementType(), because that does not handle generic types properly
+      this.WriteTypeName(((ByReferenceType) type).ElementType);
     }
     else {
       // Actual meanings to be determined - put the modifier in a comment for now
@@ -754,37 +755,35 @@ internal class CSharpWriter : ReferenceWriter {
   }
 
   protected override void WriteTypeName(TypeReference tr, ICustomAttributeProvider? context = null) {
-    // Check for pass-by-reference and make it ref T
-    if (tr.IsByReference) {
-      if (context is ParameterDefinition { IsOut: true }) {
-        // omit the "ref" - it's covered by the "out"
-      }
-      else {
-        this.Writer.Write("ref ");
-      }
-      tr = tr.GetElementType();
-    }
-    // Check for arrays and make them T[]
-    if (tr.IsArray) {
-      this.WriteTypeName(tr.GetElementType(), context);
-      this.Writer.Write("[]");
-      return;
-    }
-    // Check for pointers and make them T*
-    if (tr.IsPointer) {
-      this.WriteTypeName(tr.GetElementType(), context);
-      this.Writer.Write("*");
-      return;
+    // Note: these checks used to use things like `IsArray` and then `GetElementType()` to get at the contents. However,
+    // `GetElementType()` gets the _innermost_ element type (https://github.com/jbevain/cecil/issues/841). So given we need casts
+    // anyway to access the `ElementType` property, and this isn't very performance-critical code, we just use pattern matching to
+    // keep things readable.
+    switch (tr) {
+      case ByReferenceType brt: // => ref T
+        // omit the "ref" for "out" parameters - it's covered by the "out"
+        if (context is not ParameterDefinition { IsOut: true }) {
+          this.Writer.Write("ref ");
+        }
+        tr = brt.ElementType;
+        break;
+      case ArrayType at: // => T[]
+        this.WriteTypeName(at.ElementType, context);
+        this.Writer.Write("[]");
+        return;
+      case PointerType pt: // => T*
+        this.WriteTypeName(pt.ElementType, context);
+        this.Writer.Write("*");
+        return;
+      case RequiredModifierType rmt:
+        // These are weird things
+        this.WriteRequiredModifierTypeName(rmt);
+        return;
     }
     // Check for System.Nullable<T> and make it T?
     if (tr.TryUnwrapNullable(out var unwrapped)) {
       this.WriteTypeName(unwrapped, context);
       this.Writer.Write('?');
-      return;
-    }
-    // These are weird things
-    if (tr is RequiredModifierType rmt) {
-      this.WriteRequiredModifierTypeName(rmt);
       return;
     }
     { // Check for specific framework types that have a keyword form
@@ -855,7 +854,7 @@ internal class CSharpWriter : ReferenceWriter {
     if (tr.IsNested) {
       var declaringType = tr.DeclaringType;
       // Ignore enclosing types for qualification purposes
-      for (var currentType = this.CurrentType; currentType != null; currentType = currentType.DeclaringType) {
+      for (var currentType = this.CurrentType; currentType is not null; currentType = currentType.DeclaringType) {
         if (declaringType == currentType) {
           declaringType = null;
           break;
