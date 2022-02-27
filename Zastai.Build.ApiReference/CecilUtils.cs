@@ -227,6 +227,20 @@ internal static class CecilUtils {
               return false;
           }
           break;
+        case "System.Runtime.Versioning":
+          switch (attributeType.Name) {
+            case "RequiresPreviewFeaturesAttribute":
+              // Not relevant to API
+              return false;
+          }
+          break;
+        case "System.Security":
+          switch (attributeType.Name) {
+            case "UnverifiableCodeAttribute":
+              // Not relevant to API
+              return false;
+          }
+          break;
       }
     }
     else if (attributeType.Namespace == "System.Runtime.CompilerServices") {
