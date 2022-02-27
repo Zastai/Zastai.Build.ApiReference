@@ -42,9 +42,9 @@ internal abstract class ReferenceWriter {
     if (!ad.HasCustomAttributes) {
       return;
     }
-    this.WriteAssemblyAttributeHeader(ad);
-    this.WriteCustomAttributes(ad.CustomAttributes, "assembly", 0);
-    this.WriteAssemblyAttributeFooter(ad);
+    this.WriteCustomAttributes(ad.CustomAttributes, "assembly", 0,
+                               () => this.WriteAssemblyAttributeHeader(ad),
+                               () => this.WriteAssemblyAttributeFooter(ad));
   }
 
   protected void WriteCustomAttributes(ICustomAttributeProvider cap, int indent) {
@@ -54,7 +54,8 @@ internal abstract class ReferenceWriter {
     this.WriteCustomAttributes(cap.CustomAttributes, null, indent);
   }
 
-  protected void WriteCustomAttributes(IEnumerable<CustomAttribute> attributes, string? target, int indent) {
+  protected void WriteCustomAttributes(IEnumerable<CustomAttribute> attributes, string? target, int indent, Action? header = null,
+                                       Action? footer = null) {
     // Sort by the (full) type name; unfortunately, I'm not sure how to sort duplicates in a stable way.
     var sortedAttributes = new SortedDictionary<string, IList<CustomAttribute>>();
     foreach (var ca in attributes) {
@@ -71,6 +72,7 @@ internal abstract class ReferenceWriter {
       return;
     }
     // Now process them
+    header?.Invoke();
     foreach (var item in sortedAttributes) {
       foreach (var attribute in item.Value) {
         if (indent >= 0) {
@@ -85,15 +87,16 @@ internal abstract class ReferenceWriter {
         }
       }
     }
+    footer?.Invoke();
   }
 
   private void WriteCustomAttributes(ModuleDefinition md) {
     if (!md.HasCustomAttributes) {
       return;
     }
-    this.WriteModuleAttributeHeader(md);
-    this.WriteCustomAttributes(md.CustomAttributes, "module", 0);
-    this.WriteModuleAttributeFooter(md);
+    this.WriteCustomAttributes(md.CustomAttributes, "module", 0,
+                               () => this.WriteModuleAttributeHeader(md),
+                               () => this.WriteModuleAttributeFooter(md));
   }
 
   protected virtual void WriteModuleAttributeFooter(ModuleDefinition md) {
