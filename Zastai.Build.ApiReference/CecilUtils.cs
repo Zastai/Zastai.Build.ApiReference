@@ -10,48 +10,57 @@ namespace Zastai.Build.ApiReference;
 internal static class CecilUtils {
 
   public static string?[]? GetTupleElementNames(this ICustomAttributeProvider? cap) {
-    if (cap is null || !cap.HasCustomAttributes) {
-      return null;
-    }
-    foreach (var ca in cap.CustomAttributes) {
-      if (ca.AttributeType.IsCoreLibraryType("System.Runtime.CompilerServices", "TupleElementNamesAttribute")) {
-        if (ca.HasConstructorArguments && ca.ConstructorArguments.Count == 1) {
-          var arg = ca.ConstructorArguments[0];
-          if (arg.Value is CustomAttributeArgument[] values) {
-            var names = new string?[values.Length];
-            var idx = 0;
-            foreach (var value in values) {
-              if (value.Type == value.Type.Module.TypeSystem.String && value.Value is string name) {
-                names[idx] = name;
+    if (cap is not null && cap.HasCustomAttributes) {
+      foreach (var ca in cap.CustomAttributes) {
+        if (ca.AttributeType.IsCoreLibraryType("System.Runtime.CompilerServices", "TupleElementNamesAttribute")) {
+          if (ca.HasConstructorArguments && ca.ConstructorArguments.Count == 1) {
+            var arg = ca.ConstructorArguments[0];
+            if (arg.Value is CustomAttributeArgument[] values) {
+              var names = new string?[values.Length];
+              var idx = 0;
+              foreach (var value in values) {
+                if (value.Type == value.Type.Module.TypeSystem.String && value.Value is string name) {
+                  names[idx] = name;
+                }
+                ++idx;
               }
-              ++idx;
+              return names;
             }
-            return names;
           }
+          return null;
         }
-        return null;
       }
     }
     return null;
   }
 
-  private static bool HasNullabilityFlag(this ICustomAttributeProvider? cap, string attribute, byte value, int idx) {
-    if (cap is null || !cap.HasCustomAttributes) {
-      return false;
-    }
-    foreach (var ca in cap.CustomAttributes) {
-      if (ca.AttributeType.IsLocalType("System.Runtime.CompilerServices", attribute)) {
-        if (ca.HasConstructorArguments && ca.ConstructorArguments.Count == 1) {
-          var arg = ca.ConstructorArguments[0];
-          if (arg.Value is CustomAttributeArgument[] values && values.Length > idx) {
-            arg = values[idx];
-          }
-          else if (idx != 0) {
-            return false;
-          }
-          return arg.Type == arg.Type.Module.TypeSystem.Byte && arg.Value is byte b && b == value;
+  public static bool HasCovariantReturn(this MethodDefinition md) {
+    if (md.HasCustomAttributes) {
+      foreach (var ca in md.CustomAttributes) {
+        if (ca.AttributeType.IsCoreLibraryType("System.Runtime.CompilerServices", "PreserveBaseOverridesAttribute")) {
+          return true;
         }
-        return false;
+      }
+    }
+    return false;
+  }
+
+  private static bool HasNullabilityFlag(this ICustomAttributeProvider? cap, string attribute, byte value, int idx) {
+    if (cap is not null && cap.HasCustomAttributes) {
+      foreach (var ca in cap.CustomAttributes) {
+        if (ca.AttributeType.IsLocalType("System.Runtime.CompilerServices", attribute)) {
+          if (ca.HasConstructorArguments && ca.ConstructorArguments.Count == 1) {
+            var arg = ca.ConstructorArguments[0];
+            if (arg.Value is CustomAttributeArgument[] values && values.Length > idx) {
+              arg = values[idx];
+            }
+            else if (idx != 0) {
+              return false;
+            }
+            return arg.Type == arg.Type.Module.TypeSystem.Byte && arg.Value is byte b && b == value;
+          }
+          return false;
+        }
       }
     }
     return false;
@@ -68,12 +77,11 @@ internal static class CecilUtils {
   }
 
   public static bool IsByRefLike(this TypeDefinition td) {
-    if (!td.HasCustomAttributes) {
-      return false;
-    }
-    foreach (var ca in td.CustomAttributes) {
-      if (ca.AttributeType.IsCoreLibraryType("System.Runtime.CompilerServices", "IsByRefLikeAttribute")) {
-        return true;
+    if (td.HasCustomAttributes) {
+      foreach (var ca in td.CustomAttributes) {
+        if (ca.AttributeType.IsCoreLibraryType("System.Runtime.CompilerServices", "IsByRefLikeAttribute")) {
+          return true;
+        }
       }
     }
     return false;
@@ -81,16 +89,13 @@ internal static class CecilUtils {
 
   public static bool IsCompilerGenerated(this TypeReference tr) {
     var td = tr.Resolve();
-    if (td is null) {
-      return false;
-    }
-    if (!td.HasCustomAttributes) {
-      return false;
-    }
-    foreach (var ca in td.CustomAttributes) {
-      if (ca.AttributeType.IsCoreLibraryType("System.Runtime.CompilerServices", "CompilerGeneratedAttribute")) {
-        return true;
+    if (td is not null && td.HasCustomAttributes) {
+      foreach (var ca in td.CustomAttributes) {
+        if (ca.AttributeType.IsCoreLibraryType("System.Runtime.CompilerServices", "CompilerGeneratedAttribute")) {
+          return true;
+        }
       }
+      return false;
     }
     return false;
   }
@@ -101,25 +106,24 @@ internal static class CecilUtils {
     => tr.IsCoreLibraryType() && tr.Namespace == ns && tr.Name == name;
 
   public static bool IsDynamic(this ICustomAttributeProvider? cap, int idx) {
-    if (cap is null || !cap.HasCustomAttributes) {
-      return false;
-    }
-    foreach (var ca in cap.CustomAttributes) {
-      if (ca.AttributeType.FullName == "System.Runtime.CompilerServices.DynamicAttribute") {
-        if (idx == 0 && !ca.HasConstructorArguments) {
-          return true;
-        }
-        if (ca.HasConstructorArguments && ca.ConstructorArguments.Count == 1) {
-          var arg = ca.ConstructorArguments[0];
-          if (arg.Value is CustomAttributeArgument[] values && values.Length > idx) {
-            arg = values[idx];
+    if (cap is not null && cap.HasCustomAttributes) {
+      foreach (var ca in cap.CustomAttributes) {
+        if (ca.AttributeType.FullName == "System.Runtime.CompilerServices.DynamicAttribute") {
+          if (idx == 0 && !ca.HasConstructorArguments) {
+            return true;
           }
-          else if (idx != 0) {
-            return false;
+          if (ca.HasConstructorArguments && ca.ConstructorArguments.Count == 1) {
+            var arg = ca.ConstructorArguments[0];
+            if (arg.Value is CustomAttributeArgument[] values && values.Length > idx) {
+              arg = values[idx];
+            }
+            else if (idx != 0) {
+              return false;
+            }
+            return arg.Type == arg.Type.Module.TypeSystem.Boolean && arg.Value is true;
           }
-          return arg.Type == arg.Type.Module.TypeSystem.Boolean && arg.Value is true;
+          return false;
         }
-        return false;
       }
     }
     return false;
@@ -131,25 +135,24 @@ internal static class CecilUtils {
     => tr.IsLocalType() && tr.Namespace == ns && tr.Name == name;
 
   public static bool IsNativeInteger(this ICustomAttributeProvider? cap, int idx) {
-    if (cap is null || !cap.HasCustomAttributes) {
-      return false;
-    }
-    foreach (var ca in cap.CustomAttributes) {
-      if (ca.AttributeType.IsLocalType("System.Runtime.CompilerServices", "NativeIntegerAttribute")) {
-        if (idx == 0 && !ca.HasConstructorArguments) {
-          return true;
-        }
-        if (ca.HasConstructorArguments && ca.ConstructorArguments.Count == 1) {
-          var arg = ca.ConstructorArguments[0];
-          if (arg.Value is CustomAttributeArgument[] values && values.Length > idx) {
-            arg = values[idx];
+    if (cap is not null && cap.HasCustomAttributes) {
+      foreach (var ca in cap.CustomAttributes) {
+        if (ca.AttributeType.IsLocalType("System.Runtime.CompilerServices", "NativeIntegerAttribute")) {
+          if (idx == 0 && !ca.HasConstructorArguments) {
+            return true;
           }
-          else if (idx != 0) {
-            return false;
+          if (ca.HasConstructorArguments && ca.ConstructorArguments.Count == 1) {
+            var arg = ca.ConstructorArguments[0];
+            if (arg.Value is CustomAttributeArgument[] values && values.Length > idx) {
+              arg = values[idx];
+            }
+            else if (idx != 0) {
+              return false;
+            }
+            return arg.Type == arg.Type.Module.TypeSystem.Boolean && arg.Value is true;
           }
-          return arg.Type == arg.Type.Module.TypeSystem.Boolean && arg.Value is true;
+          return false;
         }
-        return false;
       }
     }
     return false;
@@ -222,6 +225,9 @@ internal static class CecilUtils {
               // - method & property definitions (for readonly struct members)
               // - return types
               return false;
+            case "PreserveBaseOverridesAttribute":
+              // This is handled as part of method attribute handling.
+              return false;
             case "TupleElementNamesAttribute":
               // This is handled as part of type name handling.
               return false;
@@ -268,32 +274,24 @@ internal static class CecilUtils {
   public static bool IsPublicApi(this TypeDefinition td)
     => td.IsPublic || td.IsNestedPublic || td.IsNestedFamily || td.IsNestedFamilyOrAssembly;
 
-  private static bool IsReadOnlyInternal(ICustomAttributeProvider provider) {
-    if (!provider.HasCustomAttributes) {
-      return false;
-    }
-    foreach (var ca in provider.CustomAttributes) {
-      if (ca.AttributeType.IsCoreLibraryType("System.Runtime.CompilerServices", "IsReadOnlyAttribute")) {
-        return true;
+  public static bool IsReadOnly(this ICustomAttributeProvider provider) {
+    if (provider.HasCustomAttributes) {
+      foreach (var ca in provider.CustomAttributes) {
+        if (ca.AttributeType.IsCoreLibraryType("System.Runtime.CompilerServices", "IsReadOnlyAttribute")) {
+          return true;
+        }
       }
     }
     return false;
   }
 
-  public static bool IsReadOnly(this MethodDefinition md) => CecilUtils.IsReadOnlyInternal(md);
-
-  public static bool IsReadOnly(this PropertyDefinition pd) => CecilUtils.IsReadOnlyInternal(pd);
-
-  public static bool IsReadOnly(this TypeDefinition td) => CecilUtils.IsReadOnlyInternal(td);
-
   public static bool IsUnmanaged(this GenericParameter gp) {
-    if (!gp.HasCustomAttributes) {
-      return false;
-    }
-    foreach (var ca in gp.CustomAttributes) {
-      // These attributes are emitted in the assembly itself
-      if (ca.AttributeType.IsLocalType("System.Runtime.CompilerServices", "IsUnmanagedAttribute")) {
-        return true;
+    if (gp.HasCustomAttributes) {
+      foreach (var ca in gp.CustomAttributes) {
+        // These attributes are emitted in the assembly itself
+        if (ca.AttributeType.IsLocalType("System.Runtime.CompilerServices", "IsUnmanagedAttribute")) {
+          return true;
+        }
       }
     }
     return false;

@@ -58,7 +58,7 @@ internal class CSharpWriter : ReferenceWriter {
         this.Writer.Write("sealed ");
       }
       if (md.IsVirtual) {
-        if (!md.IsNewSlot) {
+        if (!md.IsNewSlot || md.HasCovariantReturn()) {
           this.Writer.Write("override ");
         }
         else if (!md.IsFinal) {
