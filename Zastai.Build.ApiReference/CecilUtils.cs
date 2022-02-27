@@ -102,8 +102,10 @@ internal static class CecilUtils {
 
   public static bool IsCoreLibraryType(this TypeReference tr) => tr.Scope == tr.Module.TypeSystem.CoreLibrary;
 
+  public static bool IsCoreLibraryType(this TypeReference tr, string? ns) => tr.IsCoreLibraryType() && tr.Namespace == ns;
+
   public static bool IsCoreLibraryType(this TypeReference tr, string? ns, string name)
-    => tr.IsCoreLibraryType() && tr.Namespace == ns && tr.Name == name;
+    => tr.IsCoreLibraryType(ns) && tr.Name == name;
 
   public static bool IsDynamic(this ICustomAttributeProvider? cap, int idx) {
     if (cap is not null && cap.HasCustomAttributes) {
@@ -131,8 +133,9 @@ internal static class CecilUtils {
 
   public static bool IsLocalType(this TypeReference tr) => tr.Scope == tr.Module;
 
-  public static bool IsLocalType(this TypeReference tr, string? ns, string name)
-    => tr.IsLocalType() && tr.Namespace == ns && tr.Name == name;
+  public static bool IsLocalType(this TypeReference tr, string? ns) => tr.IsLocalType() && tr.Namespace == ns;
+
+  public static bool IsLocalType(this TypeReference tr, string? ns, string name) => tr.IsLocalType(ns) && tr.Name == name;
 
   public static bool IsNativeInteger(this ICustomAttributeProvider? cap, int idx) {
     if (cap is not null && cap.HasCustomAttributes) {

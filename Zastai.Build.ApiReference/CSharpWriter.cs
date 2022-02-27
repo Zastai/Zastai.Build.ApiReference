@@ -739,12 +739,22 @@ internal class CSharpWriter : ReferenceWriter {
         this.Writer.Write("[]");
         return;
       }
+      case OptionalModifierType omt: {
+        var type = omt.ElementType;
+        var modifier = omt.ModifierType;
+        // Actual meanings to be determined - put the modifier in a comment for now
+        this.WriteTypeName(type, ref dynamicIndex, ref integerIndex, context);
+        this.Writer.Write(" /* optionally modified by: ");
+        // FIXME: Does this need a context? Should it affect include the indexes?
+        this.WriteTypeName(modifier);
+        this.Writer.Write(" */");
+        return;
+      }
       case PointerType pt: // => T*
         this.WriteTypeName(pt.ElementType, ref dynamicIndex, ref integerIndex, context);
         this.Writer.Write("*");
         return;
       case RequiredModifierType rmt: {
-        // These are weird things
         var type = rmt.ElementType;
         var modifier = rmt.ModifierType;
         if (modifier.IsCoreLibraryType("System.Runtime.InteropServices", "InAttribute") && type is ByReferenceType brt) {
@@ -771,6 +781,9 @@ internal class CSharpWriter : ReferenceWriter {
     { // Check for specific framework types that have a keyword form
       var isBuiltinType = true;
       var ts = tr.Module.TypeSystem;
+      if (tr.IsPrimitive) {
+
+      }
       if (tr == ts.Boolean) {
         this.Writer.Write("bool");
       }
@@ -833,19 +846,22 @@ internal class CSharpWriter : ReferenceWriter {
         return;
       }
     }
+    // Any type gets an entry in [Dynamic]
+    ++dynamicIndex;
     // Check for C# tuples (i.e. System.ValueTuple)
     if (tr.IsGenericInstance && tr.IsCoreLibraryType() && tr.Namespace == "System" && tr.Name.StartsWith("ValueTuple`")) {
       this.Writer.Write('(');
       var element = 0;
       var elementNames = context.GetTupleElementNames();
     moreGenericArguments:
-      ++dynamicIndex;
       var genericArguments = ((GenericInstanceType) tr).GenericArguments;
       var item = 0;
       foreach (var ga in genericArguments) {
         if (++item == 8 && tr.Name == "ValueTuple`8") {
           // a 10-element tuple is an 8-element tuple where the 8th element is a 3-element tuple
           if (ga.IsGenericInstance && ga.IsCoreLibraryType() && ga.Namespace == "System" && ga.Name.StartsWith("ValueTuple`")) {
+            // skip this type
+            ++dynamicIndex;
             // switch to this one and continue processing
             tr = ga;
             goto moreGenericArguments;
@@ -872,8 +888,79 @@ internal class CSharpWriter : ReferenceWriter {
       this.Writer.Write(')');
       return;
     }
-    // Any type gets an entry in [Dynamic]
-    ++dynamicIndex;
+    if (tr is FunctionPointerType fpt) {
+      // Formats:
+      // - plain: delegate*<type, ..., return-type>
+      // - unmanaged: delegate* unmanaged<type, ..., return-type>
+      // - explicitly managed/unmanaged with calling convention modifiers: delegate* (un)managed[x, ...] <type, ..., return-type>
+      // (the syntax also allows "managed" instead of "unmanaged", but that's not a separate flag, just the default).
+      // Annoyingly, the return type is considered first for dynamic/integer/... index purposes, but the C# syntax has it at the
+      // end in order to match Func<>. So for now we use slightly different syntax:
+      // - delegate* <return-type> (un)managed[x, ...] <type, ...>
+      this.Writer.Write("delegate* ");
+      this.WriteCustomAttributes(fpt.MethodReturnType, -1);
+      var returnType = fpt.ReturnType;
+      var callingConventions = new List<string>();
+      // https://github.com/jbevain/cecil/issues/842 - no enum entry for this yet
+      if (fpt.CallingConvention == (MethodCallingConvention) 9) {
+        // look for (and drop) modopt(.CallConvXXX) on the return type, keeping the XXXs
+        while (returnType is OptionalModifierType omt) {
+          var modifier = omt.ModifierType;
+          if (modifier.IsCoreLibraryType("System.Runtime.CompilerServices") && modifier.Name.StartsWith("CallConv")) {
+            callingConventions.Add(modifier.Name.Substring(8));
+            returnType = omt.ElementType;
+            continue;
+          }
+          break;
+        }
+      }
+      this.WriteTypeName(returnType, ref dynamicIndex, ref integerIndex, context);
+      this.Writer.Write(' ');
+      switch (fpt.CallingConvention) {
+        case MethodCallingConvention.Default:
+          this.Writer.Write("managed");
+          break;
+        case MethodCallingConvention.C:
+          this.Writer.Write("unmanaged[Cdecl] ");
+          break;
+        case MethodCallingConvention.FastCall:
+          this.Writer.Write("unmanaged[Fastcall] ");
+          break;
+        case MethodCallingConvention.StdCall:
+          this.Writer.Write("unmanaged[Stdcall] ");
+          break;
+        case MethodCallingConvention.ThisCall:
+          this.Writer.Write("unmanaged[Thiscall] ");
+          break;
+        // https://github.com/jbevain/cecil/issues/842 - no enum entry for this yet
+        case (MethodCallingConvention) 9:
+          this.Writer.Write("unmanaged");
+          if (callingConventions.Count > 0) {
+            this.Writer.Write('[');
+            this.Writer.Write(string.Join(", ", callingConventions));
+            this.Writer.Write("] ");
+          }
+          break;
+        default:
+          this.Writer.Write($"unmanaged /* unhandled calling convention: {(int) fpt.CallingConvention} */ ");
+          break;
+      }
+      this.Writer.Write('<');
+      if (fpt.HasParameters) {
+        var first = true;
+        foreach (var parameter in fpt.Parameters) {
+          if (!first) {
+            this.Writer.Write(", ");
+          }
+          this.WriteCustomAttributes(parameter, -1);
+          this.WriteTypeName(parameter.ParameterType, ref dynamicIndex, ref integerIndex, context);
+          first = false;
+        }
+      }
+      this.Writer.Write('>');
+      return;
+    }
+    // TODO: Check for function pointers
     // Otherwise, full stringification.
     if (tr.IsNested) {
       var declaringType = tr.DeclaringType;
