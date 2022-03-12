@@ -178,6 +178,9 @@ internal static class CecilUtils {
       switch (attributeType.Namespace) {
         case "System":
           switch (attributeType.Name) {
+            case "CLSCompliantAttribute":
+              // Not relevant to API
+              return false;
             case "ObsoleteAttribute":
               // This is normally relevant to public API. But the compiler sometimes introduces one when particular language
               // features are used, and we don't care about those.
@@ -196,11 +199,39 @@ internal static class CecilUtils {
               return false;
           }
           break;
+        case "System.ComponentModel":
+          switch (attributeType.Name) {
+            case "EditorBrowsableAttribute":
+              // Not relevant to API
+              return false;
+          }
+          break;
         case "System.Diagnostics":
           switch (attributeType.Name) {
             case "DebuggableAttribute":
+            case "DebuggerDisplayAttribute":
+            case "DebuggerHiddenAttribute":
             case "DebuggerStepThroughAttribute":
               // Not relevant to API
+              return false;
+          }
+          break;
+        case "System.Diagnostics.CodeAnalysis":
+          switch (attributeType.Name) {
+            case "AllowNullAttribute":
+            case "DisallowNullAttribute":
+            case "DoesNotReturnAttribute":
+            case "DoesNotReturnIfAttribute":
+            case "DynamicallyAccessedMembersAttribute":
+            case "DynamicDependencyAttribute":
+            case "MaybeNullAttribute":
+            case "MaybeNullWhenAttribute":
+            case "MemberNotNullAttribute":
+            case "MemberNotNullWhenAttribute":
+            case "NotNullAttribute":
+            case "NotNullIfNotNullAttribute":
+            case "NotNullWhenAttribute":
+              // Not really relevant to API (yet; maybe become so if full nullable reference type support is added)
               return false;
           }
           break;
@@ -214,6 +245,7 @@ internal static class CecilUtils {
             case "AsyncStateMachineAttribute":
             case "CompilationRelaxationsAttribute":
             case "CompilerGeneratedAttribute":
+            case "IteratorStateMachineAttribute":
             case "RuntimeCompatibilityAttribute":
               // Not relevant to API
               return false;
@@ -253,6 +285,25 @@ internal static class CecilUtils {
           break;
       }
     }
+    else if (attributeType.IsLocalType("System.Diagnostics.CodeAnalysis")) {
+      // These are normally in the core library (handled above), but can also be embedded (typically in .NET Framework builds).
+      switch (attributeType.Name) {
+        case "AllowNullAttribute":
+        case "DisallowNullAttribute":
+        case "DoesNotReturnAttribute":
+        case "DoesNotReturnIfAttribute":
+        case "DynamicallyAccessedMembersAttribute":
+        case "DynamicDependencyAttribute":
+        case "MaybeNullAttribute":
+        case "MaybeNullWhenAttribute":
+        case "MemberNotNullAttribute":
+        case "MemberNotNullWhenAttribute":
+        case "NotNullAttribute":
+        case "NotNullIfNotNullAttribute":
+        case "NotNullWhenAttribute":
+          return false;
+      }
+    }
     else if (attributeType.Namespace == "System.Runtime.CompilerServices") {
       // Some of these live outside the core library, and some are emitted in the assembly as part of compilation.
       switch (attributeType.Name) {
@@ -265,6 +316,7 @@ internal static class CecilUtils {
           return false;
         case "NullableAttribute" when attributeType.IsLocalType():
         case "NullableContextAttribute" when attributeType.IsLocalType():
+        case "NullablePublicOnlyAttribute" when attributeType.IsLocalType():
           // These are handled as part of nullable reference type support.
           return false;
         // These are normally in the core library (handled above), but can also be embedded (typically in .NET Framework builds).
