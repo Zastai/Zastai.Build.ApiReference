@@ -79,7 +79,8 @@ internal static class CecilUtils {
   public static bool IsByRefLike(this TypeDefinition td) {
     if (td.HasCustomAttributes) {
       foreach (var ca in td.CustomAttributes) {
-        if (ca.AttributeType.IsCoreLibraryType("System.Runtime.CompilerServices", "IsByRefLikeAttribute")) {
+        if (ca.AttributeType.IsCoreLibraryType("System.Runtime.CompilerServices", "IsByRefLikeAttribute") ||
+            ca.AttributeType.IsLocalType("System.Runtime.CompilerServices", "IsByRefLikeAttribute")) {
           return true;
         }
       }
@@ -173,7 +174,7 @@ internal static class CecilUtils {
 
   public static bool IsPublicApi(this ICustomAttribute ca) {
     var attributeType = ca.AttributeType;
-    if (attributeType.Scope == attributeType.Module.TypeSystem.CoreLibrary) {
+    if (attributeType.IsCoreLibraryType()) {
       switch (attributeType.Namespace) {
         case "System":
           switch (attributeType.Name) {
@@ -253,7 +254,7 @@ internal static class CecilUtils {
       }
     }
     else if (attributeType.Namespace == "System.Runtime.CompilerServices") {
-      // Some of these live outside the core library, and some are emitted in the assembly as part of compilation
+      // Some of these live outside the core library, and some are emitted in the assembly as part of compilation.
       switch (attributeType.Name) {
         case "IsUnmanagedAttribute" when attributeType.IsLocalType():
           // This is handled as part of generic type constraint handling.
@@ -265,6 +266,10 @@ internal static class CecilUtils {
         case "NullableAttribute" when attributeType.IsLocalType():
         case "NullableContextAttribute" when attributeType.IsLocalType():
           // These are handled as part of nullable reference type support.
+          return false;
+        // These are normally in the core library (handled above), but can also be embedded (typically in .NET Framework builds).
+        case "IsByRefLikeAttribute" when attributeType.IsLocalType():
+        case "IsReadOnlyAttribute" when attributeType.IsLocalType():
           return false;
       }
     }
@@ -280,7 +285,8 @@ internal static class CecilUtils {
   public static bool IsReadOnly(this ICustomAttributeProvider provider) {
     if (provider.HasCustomAttributes) {
       foreach (var ca in provider.CustomAttributes) {
-        if (ca.AttributeType.IsCoreLibraryType("System.Runtime.CompilerServices", "IsReadOnlyAttribute")) {
+        if (ca.AttributeType.IsCoreLibraryType("System.Runtime.CompilerServices", "IsReadOnlyAttribute") ||
+            ca.AttributeType.IsLocalType("System.Runtime.CompilerServices", "IsReadOnlyAttribute")) {
           return true;
         }
       }
