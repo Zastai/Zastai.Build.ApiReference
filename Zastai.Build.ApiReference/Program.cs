@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Runtime.Serialization;
 
 namespace Zastai.Build.ApiReference;
 
@@ -50,9 +51,7 @@ public static class Program {
       return 3;
     }
 
-    using var reference = referenceSource == "-" ? Console.Out : new StreamWriter(File.Create(referenceSource), Encoding.UTF8);
-
-    ReferenceWriter? writer = null;
+    CodeFormatter? formatter = null;
     var dependencyPath = new List<string>();
     for (var i = 2; i < args.Length; i += 2) {
       switch (args[i]) {
@@ -61,7 +60,7 @@ public static class Program {
             case "c#":
             case "cs":
             case "csharp":
-              writer = new CSharpWriter(reference);
+              formatter = new CSharpFormatter();
               break;
             case "c#-markdown":
             case "c#-md":
@@ -69,7 +68,7 @@ public static class Program {
             case "cs-md":
             case "csharp-markdown":
             case "csharp-md":
-              writer = new CSharpMarkdownWriter(reference);
+              formatter = new CSharpMarkdownFormatter();
               break;
             default:
               Console.Error.WriteLine("Unsupported output format: {0}", args[i + 1]);
@@ -85,11 +84,20 @@ public static class Program {
     }
 
     // Default to C#
-    writer ??= new CSharpWriter(reference);
+    formatter ??= new CSharpFormatter();
 
     using var ad = AssemblyDefinition.ReadAssembly(assembly, Program.CreateReaderParameters(assembly, dependencyPath));
 
-    writer.WritePublicApi(ad);
+    using var reference = referenceSource == "-" ? Console.Out : new StreamWriter(File.Create(referenceSource), Encoding.UTF8);
+
+    foreach (var line in formatter.FormatPublicApi(ad)) {
+      if (line is null) {
+        reference.WriteLine();
+      }
+      else {
+        reference.WriteLine(line);
+      }
+    }
 
     return 0;
   }
