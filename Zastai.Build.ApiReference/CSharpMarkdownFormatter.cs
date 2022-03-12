@@ -41,7 +41,7 @@ internal class CSharpMarkdownFormatter : CSharpFormatter {
 
   protected override IEnumerable<string?> TypeHeader(TypeDefinition td) {
     yield return null;
-    yield return $"### Type: {this.TypeName(td)}";
+    yield return $"### Type: {this.TypeName(td).Replace("<", "\\<")}";
     yield return null;
     yield return "```cs";
   }
