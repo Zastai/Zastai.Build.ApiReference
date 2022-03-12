@@ -664,22 +664,21 @@ internal class CSharpFormatter : CodeFormatter {
         if (baseType is not null || td.HasInterfaces) {
           sb.Append(" : ");
         }
-        var first = true;
         if (baseType is not null) {
           // FIXME: Does this need a context?
           sb.Append(this.TypeName(baseType));
-          first = false;
+          if (td.HasInterfaces) {
+            sb.Append(", ");
+          }
         }
         if (td.HasInterfaces) {
+          // Ensure these are emitted sorted
+          var interfaces = new SortedDictionary<string, string>();
           foreach (var implementation in td.Interfaces) {
-            if (!first) {
-              sb.Append(", ");
-            }
-            sb.Append(this.CustomAttributesInline(implementation));
-            // FIXME: Does this need a context?
-            sb.Append(this.TypeName(implementation.InterfaceType));
-            first = false;
+            var type = this.TypeName(implementation.InterfaceType);
+            interfaces.Add(type, this.CustomAttributesInline(implementation) + type);
           }
+          sb.AppendJoin(", ", interfaces.Values);
         }
       }
       var constraints = this.GenericParameterConstraints(td, indent + 2).ToList();
