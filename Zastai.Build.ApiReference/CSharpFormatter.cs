@@ -80,7 +80,7 @@ internal class CSharpFormatter : CodeFormatter {
     }
   }
 
-  protected override string CustomAttributesInline(ICustomAttributeProvider cap) {
+  protected virtual string CustomAttributesInline(ICustomAttributeProvider cap) {
     if (!cap.HasCustomAttributes) {
       return "";
     }
@@ -116,6 +116,20 @@ internal class CSharpFormatter : CodeFormatter {
       .Append(ed.AddMethod is not null ? this.Attributes(ed.AddMethod) : "/* no add-on method */ ")
       .Append("event ").Append(this.TypeName(ed.EventType, ed)).Append(' ').Append(ed.Name).Append(';');
     return sb.ToString();
+  }
+
+  protected override IEnumerable<string?> ExportedTypes(SortedDictionary<string, IDictionary<string, ExportedType>> exportedTypes) {
+    var sb = new StringBuilder();
+    foreach (var scope in exportedTypes) {
+      yield return null;
+      yield return this.LineComment($"Exported Types - {scope.Key}");
+      yield return null;
+      foreach (var et in scope.Value.Values) {
+        sb.Clear();
+        sb.Append("[assembly: TypeForwardedTo(typeof(").Append(this.TypeName(et)).Append("))]");
+        yield return sb.ToString();
+      }
+    }
   }
 
   protected override string Field(FieldDefinition fd, int indent) {
@@ -714,6 +728,20 @@ internal class CSharpFormatter : CodeFormatter {
       sb.Append(' ', indent).Append('}');
       yield return sb.ToString();
     }
+  }
+
+  protected virtual string TypeName(ExportedType et) {
+    var sb = new StringBuilder();
+    if (et.DeclaringType is not null) {
+      sb.Append(this.TypeName(et.DeclaringType)).Append('.');
+    }
+    else if (!string.IsNullOrEmpty(et.Namespace)) {
+      sb.Append(et.Namespace).Append('.');
+    }
+    // There is no provision for generic parameters on ExportedType, so this will have the "ugly name" (Foo`3).
+    // We _could_ detect that and map it to Foo<T1, T2, T3> here.
+    sb.Append(et.Name);
+    return sb.ToString();
   }
 
   private string TypeName(TypeReference tr, ref int dynamicIndex, ref int integerIndex, ICustomAttributeProvider? context) {

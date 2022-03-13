@@ -17,6 +17,22 @@ internal class CSharpMarkdownFormatter : CSharpFormatter {
     yield return "```cs";
   }
 
+  protected override IEnumerable<string?> ExportedTypes(SortedDictionary<string, IDictionary<string, ExportedType>> exportedTypes) {
+    yield return null;
+    yield return "## Exported Types";
+    var sb = new StringBuilder();
+    foreach (var scope in exportedTypes) {
+      yield return null;
+      yield return $"Exported to {scope.Key}:";
+      yield return null;
+      foreach (var et in scope.Value.Values) {
+        sb.Clear();
+        sb.Append("- ").Append(this.TypeName(et));
+        yield return sb.ToString();
+      }
+    }
+  }
+
   protected override IEnumerable<string?> FileHeader(AssemblyDefinition ad) {
     yield return $"# API Reference: {ad.Name.Name}";
   }

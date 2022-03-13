@@ -63,8 +63,8 @@ internal abstract class CodeFormatter {
       yield break;
     }
     // Now process them
-    foreach (var item in sortedAttributes) {
-      foreach (var attribute in item.Value) {
+    foreach (var list in sortedAttributes.Values) {
+      foreach (var attribute in list) {
         yield return this.CustomAttribute(attribute);
       }
     }
@@ -87,8 +87,6 @@ internal abstract class CodeFormatter {
       }
     }
   }
-
-  protected abstract string CustomAttributesInline(ICustomAttributeProvider cap);
 
   protected abstract string EnumField(FieldDefinition fd, int indent);
 
@@ -114,14 +112,39 @@ internal abstract class CodeFormatter {
     if (events.Count == 0) {
       yield break;
     }
-    foreach (var @event in events) {
+    foreach (var ed in events.Values) {
       yield return null;
-      foreach (var line in this.CustomAttributes(@event.Value, indent)) {
+      foreach (var line in this.CustomAttributes(ed, indent)) {
         yield return line;
       }
-      yield return this.Event(@event.Value, indent);
+      yield return this.Event(ed, indent);
     }
   }
+
+  private IEnumerable<string?> ExportedTypes(AssemblyDefinition ad) {
+    var exportedTypes = new SortedDictionary<string, IDictionary<string, ExportedType>>();
+    foreach (var md in ad.Modules) {
+      if (!md.HasExportedTypes) {
+        continue;
+      }
+      foreach (var et in md.ExportedTypes) {
+        string key;
+        if (et.Scope is AssemblyNameReference anr) {
+          key = $"{anr.Name} (v{anr.Version})";
+        }
+        else {
+          key = et.Scope.Name;
+        }
+        if (!exportedTypes.TryGetValue(key, out var types)) {
+          exportedTypes.Add(key, types = new SortedDictionary<string, ExportedType>());
+        }
+        types.Add(et.FullName, et);
+      }
+    }
+    return exportedTypes.Count == 0 ? Enumerable.Empty<string?>() : this.ExportedTypes(exportedTypes);
+  }
+
+  protected abstract IEnumerable<string?> ExportedTypes(SortedDictionary<string, IDictionary<string, ExportedType>> exportedTypes);
 
   protected abstract string Field(FieldDefinition fd, int indent);
 
@@ -144,23 +167,23 @@ internal abstract class CodeFormatter {
     }
     if (td.IsEnum) {
       yield return null;
-      foreach (var field in fields) {
-        if (field.Value.IsSpecialName) { // skip value__
+      foreach (var fd in fields.Values) {
+        if (fd.IsSpecialName) { // skip value__
           continue;
         }
-        foreach (var line in this.CustomAttributes(field.Value, indent)) {
+        foreach (var line in this.CustomAttributes(fd, indent)) {
           yield return line;
         }
-        yield return this.EnumField(field.Value, indent);
+        yield return this.EnumField(fd, indent);
       }
     }
     else {
-      foreach (var field in fields) {
+      foreach (var fd in fields.Values) {
         yield return null;
-        foreach (var line in this.CustomAttributes(field.Value, indent)) {
+        foreach (var line in this.CustomAttributes(fd, indent)) {
           yield return line;
         }
-        yield return this.Field(field.Value, indent);
+        yield return this.Field(fd, indent);
       }
     }
   }
@@ -223,10 +246,10 @@ internal abstract class CodeFormatter {
     if (methods.Count == 0) {
       yield break;
     }
-    foreach (var method in methods) {
-      foreach (var overload in method.Value) {
+    foreach (var overloads in methods.Values) {
+      foreach (var md in overloads.Values) {
         yield return null;
-        foreach (var line in this.Method(overload.Value, indent)) {
+        foreach (var line in this.Method(md, indent)) {
           yield return line;
         }
       }
@@ -283,9 +306,9 @@ internal abstract class CodeFormatter {
       yield break;
     }
     var parentType = this.CurrentType;
-    foreach (var type in nestedTypes) {
+    foreach (var nestedType in nestedTypes.Values) {
       yield return null;
-      foreach (var line in this.Type(this.CurrentType = type.Value, indent)) {
+      foreach (var line in this.Type(this.CurrentType = nestedType, indent)) {
         yield return line;
       }
     }
@@ -327,17 +350,17 @@ internal abstract class CodeFormatter {
     if (properties.Count == 0) {
       yield break;
     }
-    foreach (var parametrizedProperty in parametrizedProperties) {
-      foreach (var overload in parametrizedProperty.Value) {
+    foreach (var overloads in parametrizedProperties.Values) {
+      foreach (var pd in overloads.Values) {
         yield return null;
-        foreach (var line in this.Property(overload.Value, indent)) {
+        foreach (var line in this.Property(pd, indent)) {
           yield return line;
         }
       }
     }
-    foreach (var property in properties) {
+    foreach (var pd in properties.Values) {
       yield return null;
-      foreach (var line in this.Property(property.Value, indent)) {
+      foreach (var line in this.Property(pd, indent)) {
         yield return line;
       }
     }
@@ -350,6 +373,9 @@ internal abstract class CodeFormatter {
       yield return line;
     }
     foreach (var line in this.TopLevelAttributes(ad)) {
+      yield return line;
+    }
+    foreach (var line in this.ExportedTypes(ad)) {
       yield return line;
     }
     foreach (var line in this.TopLevelTypes(ad)) {
@@ -459,8 +485,7 @@ internal abstract class CodeFormatter {
         if (flags) {
           var flagsValue = value.ToULong();
           var remainingFlags = flagsValue;
-          foreach (var item in sortedValues) {
-            var enumValue = item.Value;
+          foreach (var enumValue in sortedValues.Values) {
             var valueFlags = enumValue.Constant.ToULong();
             // FIXME: Should we include fields with value 0?
             if ((flagsValue & valueFlags) != valueFlags) {
