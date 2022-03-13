@@ -485,7 +485,8 @@ internal abstract class CodeFormatter {
         enumType = unwrapped;
       }
       var td = enumType.Resolve();
-      if (td.IsEnum) {
+      // If we can't resolve it, we can't know whether it was an enum
+      if (td is not null && td.IsEnum) {
         // Check for [Flags]
         var flags = false;
         if (td.HasCustomAttributes) {
