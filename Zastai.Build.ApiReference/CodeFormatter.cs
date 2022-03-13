@@ -1,4 +1,5 @@
-﻿using System.Linq;
+﻿using System.Globalization;
+using System.Linq;
 
 namespace Zastai.Build.ApiReference;
 
@@ -215,7 +216,29 @@ internal abstract class CodeFormatter {
 
   protected abstract string Literal(bool value);
 
+  protected abstract string Literal(byte value);
+
+  protected abstract string Literal(decimal value);
+
+  protected abstract string Literal(double value);
+
+  protected abstract string Literal(float value);
+
+  protected abstract string Literal(int value);
+
+  protected abstract string Literal(long value);
+
+  protected abstract string Literal(sbyte value);
+
+  protected abstract string Literal(short value);
+
   protected abstract string Literal(string value);
+
+  protected abstract string Literal(uint value);
+
+  protected abstract string Literal(ulong value);
+
+  protected abstract string Literal(ushort value);
 
   protected abstract IEnumerable<string?> Method(MethodDefinition md, int indent);
 
@@ -520,10 +543,32 @@ internal abstract class CodeFormatter {
         return this.TypeOf(tr);
       case bool b:
         return this.Literal(b);
+      case byte b:
+        return this.Literal(b);
+      case decimal d:
+        return this.Literal(d);
+      case double d:
+        return this.Literal(d);
+      case float f:
+        return this.Literal(f);
+      case int i:
+        return this.Literal(i);
+      case long l:
+        return this.Literal(l);
+      case sbyte sb:
+        return this.Literal(sb);
+      case short s:
+        return this.Literal(s);
       case string s:
         return this.Literal(s);
+      case uint ui:
+        return this.Literal(ui);
+      case ulong ul:
+        return this.Literal(ul);
+      case ushort us:
+        return this.Literal(us);
       default:
-        // Assume everything else matches its ToString()
+        // Assume everything else matches its ToString() - even though there's no way to tell it to use an invariant form
         return value.ToString() ?? "/* non-null object with null string form */";
     }
   }

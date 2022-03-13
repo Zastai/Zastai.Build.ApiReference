@@ -1,4 +1,5 @@
-﻿using System.Linq;
+﻿using System.Globalization;
+using System.Linq;
 
 namespace Zastai.Build.ApiReference;
 
@@ -271,6 +272,22 @@ internal class CSharpFormatter : CodeFormatter {
 
   protected override string Literal(bool value) => value ? "true" : "false";
 
+  protected override string Literal(byte value) => "(byte) " + value.ToString(CultureInfo.InvariantCulture);
+
+  protected override string Literal(decimal value) => value.ToString(CultureInfo.InvariantCulture) + 'M';
+
+  protected override string Literal(double value) => value.ToString(CultureInfo.InvariantCulture) + 'D';
+
+  protected override string Literal(float value) => value.ToString(CultureInfo.InvariantCulture) + 'F';
+
+  protected override string Literal(int value) => value.ToString(CultureInfo.InvariantCulture);
+
+  protected override string Literal(long value) => value.ToString(CultureInfo.InvariantCulture) + "L";
+
+  protected override string Literal(sbyte value) => "(sbyte) " + value.ToString(CultureInfo.InvariantCulture);
+
+  protected override string Literal(short value) => "(short) " + value.ToString(CultureInfo.InvariantCulture);
+
   protected override string Literal(string value) {
     var sb = new StringBuilder();
     sb.Append('"');
@@ -317,6 +334,12 @@ internal class CSharpFormatter : CodeFormatter {
     sb.Append('"');
     return sb.ToString();
   }
+
+  protected override string Literal(uint value) => value.ToString(CultureInfo.InvariantCulture) + "U";
+
+  protected override string Literal(ulong value) => value.ToString(CultureInfo.InvariantCulture) + "UL";
+
+  protected override string Literal(ushort value) => "(ushort) " + value.ToString(CultureInfo.InvariantCulture);
 
   protected override IEnumerable<string?> Method(MethodDefinition md, int indent) {
     foreach (var customAttribute in this.CustomAttributes(md, indent)) {
