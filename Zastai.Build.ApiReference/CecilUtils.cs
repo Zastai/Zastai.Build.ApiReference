@@ -12,7 +12,7 @@ internal static class CecilUtils {
   public static string?[]? GetTupleElementNames(this ICustomAttributeProvider? cap) {
     if (cap is not null && cap.HasCustomAttributes) {
       foreach (var ca in cap.CustomAttributes) {
-        if (ca.AttributeType.IsCoreLibraryType("System.Runtime.CompilerServices", "TupleElementNamesAttribute")) {
+        if (ca.AttributeType.IsNamed("System.Runtime.CompilerServices", "TupleElementNamesAttribute")) {
           if (ca.HasConstructorArguments && ca.ConstructorArguments.Count == 1) {
             var arg = ca.ConstructorArguments[0];
             if (arg.Value is CustomAttributeArgument[] values) {
@@ -37,7 +37,7 @@ internal static class CecilUtils {
   public static bool HasCovariantReturn(this MethodDefinition md) {
     if (md.HasCustomAttributes) {
       foreach (var ca in md.CustomAttributes) {
-        if (ca.AttributeType.IsCoreLibraryType("System.Runtime.CompilerServices", "PreserveBaseOverridesAttribute")) {
+        if (ca.AttributeType.IsNamed("System.Runtime.CompilerServices", "PreserveBaseOverridesAttribute")) {
           return true;
         }
       }
@@ -48,7 +48,7 @@ internal static class CecilUtils {
   private static bool HasNullabilityFlag(this ICustomAttributeProvider? cap, string attribute, byte value, int idx) {
     if (cap is not null && cap.HasCustomAttributes) {
       foreach (var ca in cap.CustomAttributes) {
-        if (ca.AttributeType.IsLocalType("System.Runtime.CompilerServices", attribute)) {
+        if (ca.AttributeType.IsNamed("System.Runtime.CompilerServices", attribute)) {
           if (ca.HasConstructorArguments && ca.ConstructorArguments.Count == 1) {
             var arg = ca.ConstructorArguments[0];
             if (arg.Value is CustomAttributeArgument[] values && values.Length > idx) {
@@ -79,8 +79,7 @@ internal static class CecilUtils {
   public static bool IsByRefLike(this TypeDefinition td) {
     if (td.HasCustomAttributes) {
       foreach (var ca in td.CustomAttributes) {
-        if (ca.AttributeType.IsCoreLibraryType("System.Runtime.CompilerServices", "IsByRefLikeAttribute") ||
-            ca.AttributeType.IsLocalType("System.Runtime.CompilerServices", "IsByRefLikeAttribute")) {
+        if (ca.AttributeType.IsNamed("System.Runtime.CompilerServices", "IsByRefLikeAttribute")) {
           return true;
         }
       }
@@ -92,7 +91,7 @@ internal static class CecilUtils {
     var td = tr.Resolve();
     if (td is not null && td.HasCustomAttributes) {
       foreach (var ca in td.CustomAttributes) {
-        if (ca.AttributeType.IsCoreLibraryType("System.Runtime.CompilerServices", "CompilerGeneratedAttribute")) {
+        if (ca.AttributeType.IsNamed("System.Runtime.CompilerServices", "CompilerGeneratedAttribute")) {
           return true;
         }
       }
@@ -103,10 +102,10 @@ internal static class CecilUtils {
 
   public static bool IsCoreLibraryType(this TypeReference tr) => tr.Scope == tr.Module.TypeSystem.CoreLibrary;
 
-  public static bool IsCoreLibraryType(this TypeReference tr, string? ns) => tr.IsCoreLibraryType() && tr.Namespace == ns;
+  public static bool IsCoreLibraryType(this TypeReference tr, string? ns) => tr.IsCoreLibraryType() && tr.IsNamed(ns);
 
   public static bool IsCoreLibraryType(this TypeReference tr, string? ns, string name)
-    => tr.IsCoreLibraryType(ns) && tr.Name == name;
+    => tr.IsCoreLibraryType() && tr.IsNamed(ns, name);
 
   public static bool IsDynamic(this ICustomAttributeProvider? cap, int idx) {
     if (cap is not null && cap.HasCustomAttributes) {
@@ -134,14 +133,18 @@ internal static class CecilUtils {
 
   public static bool IsLocalType(this TypeReference tr) => tr.Scope == tr.Module;
 
-  public static bool IsLocalType(this TypeReference tr, string? ns) => tr.IsLocalType() && tr.Namespace == ns;
+  public static bool IsLocalType(this TypeReference tr, string? ns) => tr.IsLocalType() && tr.IsNamed(ns);
 
-  public static bool IsLocalType(this TypeReference tr, string? ns, string name) => tr.IsLocalType(ns) && tr.Name == name;
+  public static bool IsLocalType(this TypeReference tr, string? ns, string name) => tr.IsLocalType() && tr.IsNamed(ns, name);
+
+  public static bool IsNamed(this TypeReference tr, string? ns) => tr.Namespace == ns;
+
+  public static bool IsNamed(this TypeReference tr, string? ns, string name) => tr.Namespace == ns && tr.Name == name;
 
   public static bool IsNativeInteger(this ICustomAttributeProvider? cap, int idx) {
     if (cap is not null && cap.HasCustomAttributes) {
       foreach (var ca in cap.CustomAttributes) {
-        if (ca.AttributeType.IsLocalType("System.Runtime.CompilerServices", "NativeIntegerAttribute")) {
+        if (ca.AttributeType.IsNamed("System.Runtime.CompilerServices", "NativeIntegerAttribute")) {
           if (idx == 0 && !ca.HasConstructorArguments) {
             return true;
           }
@@ -165,7 +168,7 @@ internal static class CecilUtils {
   public static bool IsNullable(this ICustomAttributeProvider? cap, int idx = 0) => cap.HasNullableFlag(2, idx);
 
   public static bool IsParamArray(this ParameterDefinition pd)
-    => pd.HasCustomAttributes && pd.CustomAttributes.Any(ca => ca.AttributeType.IsCoreLibraryType("System", "ParamArrayAttribute"));
+    => pd.HasCustomAttributes && pd.CustomAttributes.Any(ca => ca.AttributeType.IsNamed("System", "ParamArrayAttribute"));
 
   // FIXME: Can the remove method differ? Does it matter?
   public static bool IsPublicApi(this EventDefinition ed) => ed.AddMethod.IsPublicApi();
@@ -174,156 +177,124 @@ internal static class CecilUtils {
 
   public static bool IsPublicApi(this ICustomAttribute ca) {
     var attributeType = ca.AttributeType;
-    if (attributeType.IsCoreLibraryType()) {
-      switch (attributeType.Namespace) {
-        case "System":
-          switch (attributeType.Name) {
-            case "CLSCompliantAttribute":
-              // Not relevant to API
-              return false;
-            case "ObsoleteAttribute":
-              // This is normally relevant to public API. But the compiler sometimes introduces one when particular language
-              // features are used, and we don't care about those.
-              if (ca.HasConstructorArguments) {
-                var arg = ca.ConstructorArguments[0];
-                if (arg.Type == arg.Type.Module.TypeSystem.String) {
-                  switch ((string) arg.Value) {
-                    case Obsolete.RefStructs:
-                      return false;
-                  }
+    switch (attributeType.Namespace) {
+      case "System":
+        switch (attributeType.Name) {
+          case "CLSCompliantAttribute":
+            // Not relevant to API
+            return false;
+          case "ObsoleteAttribute":
+            // This is normally relevant to public API. But the compiler sometimes introduces one when particular language
+            // features are used, and we don't care about those.
+            if (ca.HasConstructorArguments) {
+              var arg = ca.ConstructorArguments[0];
+              if (arg.Type == arg.Type.Module.TypeSystem.String) {
+                switch ((string) arg.Value) {
+                  case Obsolete.RefStructs:
+                    return false;
                 }
               }
-              return true;
-            case "ParamArrayAttribute":
-              // This is handled as part of parameter attribute handling
-              return false;
-          }
-          break;
-        case "System.ComponentModel":
-          switch (attributeType.Name) {
-            case "EditorBrowsableAttribute":
-              // Not relevant to API
-              return false;
-          }
-          break;
-        case "System.Diagnostics":
-          switch (attributeType.Name) {
-            case "DebuggableAttribute":
-            case "DebuggerDisplayAttribute":
-            case "DebuggerHiddenAttribute":
-            case "DebuggerStepThroughAttribute":
-              // Not relevant to API
-              return false;
-          }
-          break;
-        case "System.Diagnostics.CodeAnalysis":
-          switch (attributeType.Name) {
-            case "AllowNullAttribute":
-            case "DisallowNullAttribute":
-            case "DoesNotReturnAttribute":
-            case "DoesNotReturnIfAttribute":
-            case "DynamicallyAccessedMembersAttribute":
-            case "DynamicDependencyAttribute":
-            case "MaybeNullAttribute":
-            case "MaybeNullWhenAttribute":
-            case "MemberNotNullAttribute":
-            case "MemberNotNullWhenAttribute":
-            case "NotNullAttribute":
-            case "NotNullIfNotNullAttribute":
-            case "NotNullWhenAttribute":
-              // Not really relevant to API (yet; maybe become so if full nullable reference type support is added)
-              return false;
-          }
-          break;
-        case "System.Reflection":
-          if (attributeType.Name.StartsWith("Assembly")) {
+            }
+            return true;
+          case "ParamArrayAttribute":
+            // This is handled as part of parameter attribute handling
             return false;
-          }
-          break;
-        case "System.Runtime.CompilerServices":
-          switch (attributeType.Name) {
-            case "AsyncStateMachineAttribute":
-            case "CompilationRelaxationsAttribute":
-            case "CompilerGeneratedAttribute":
-            case "IteratorStateMachineAttribute":
-            case "RuntimeCompatibilityAttribute":
-              // Not relevant to API
-              return false;
-            case "ExtensionAttribute":
-              // This is handled as part of method signature handling; we don't care about its presence on assemblies/classes
-              return false;
-            case "IsByRefLikeAttribute":
-              // This is handled as part of struct definition handling.
-              return false;
-            case "IsReadOnlyAttribute":
-              // This is handled as part of relevant handling:
-              // - type definitions (for readonly struct)
-              // - method & property definitions (for readonly struct members)
-              // - return types
-              return false;
-            case "PreserveBaseOverridesAttribute":
-              // This is handled as part of method attribute handling.
-              return false;
-            case "TupleElementNamesAttribute":
-              // This is handled as part of type name handling.
-              return false;
-          }
-          break;
-        case "System.Runtime.Versioning":
-          switch (attributeType.Name) {
-            case "RequiresPreviewFeaturesAttribute":
-              // Not relevant to API
-              return false;
-          }
-          break;
-        case "System.Security":
-          switch (attributeType.Name) {
-            case "UnverifiableCodeAttribute":
-              // Not relevant to API
-              return false;
-          }
-          break;
-      }
-    }
-    else if (attributeType.IsLocalType("System.Diagnostics.CodeAnalysis")) {
-      // These are normally in the core library (handled above), but can also be embedded (typically in .NET Framework builds).
-      switch (attributeType.Name) {
-        case "AllowNullAttribute":
-        case "DisallowNullAttribute":
-        case "DoesNotReturnAttribute":
-        case "DoesNotReturnIfAttribute":
-        case "DynamicallyAccessedMembersAttribute":
-        case "DynamicDependencyAttribute":
-        case "MaybeNullAttribute":
-        case "MaybeNullWhenAttribute":
-        case "MemberNotNullAttribute":
-        case "MemberNotNullWhenAttribute":
-        case "NotNullAttribute":
-        case "NotNullIfNotNullAttribute":
-        case "NotNullWhenAttribute":
+        }
+        break;
+      case "System.ComponentModel":
+        switch (attributeType.Name) {
+          case "EditorBrowsableAttribute":
+            // Not relevant to API
+            return false;
+        }
+        break;
+      case "System.Diagnostics":
+        switch (attributeType.Name) {
+          case "DebuggableAttribute":
+          case "DebuggerDisplayAttribute":
+          case "DebuggerHiddenAttribute":
+          case "DebuggerStepThroughAttribute":
+            // Not relevant to API
+            return false;
+        }
+        break;
+      case "System.Diagnostics.CodeAnalysis":
+        switch (attributeType.Name) {
+          case "AllowNullAttribute":
+          case "DisallowNullAttribute":
+          case "DoesNotReturnAttribute":
+          case "DoesNotReturnIfAttribute":
+          case "DynamicallyAccessedMembersAttribute":
+          case "DynamicDependencyAttribute":
+          case "MaybeNullAttribute":
+          case "MaybeNullWhenAttribute":
+          case "MemberNotNullAttribute":
+          case "MemberNotNullWhenAttribute":
+          case "NotNullAttribute":
+          case "NotNullIfNotNullAttribute":
+          case "NotNullWhenAttribute":
+            // Not really relevant to API (yet; maybe become so if full nullable reference type support is added)
+            return false;
+        }
+        break;
+      case "System.Reflection":
+        if (attributeType.Name.StartsWith("Assembly")) {
           return false;
-      }
-    }
-    else if (attributeType.Namespace == "System.Runtime.CompilerServices") {
-      // Some of these live outside the core library, and some are emitted in the assembly as part of compilation.
-      switch (attributeType.Name) {
-        case "IsUnmanagedAttribute" when attributeType.IsLocalType():
-          // This is handled as part of generic type constraint handling.
-          return false;
-        case "DynamicAttribute": // in System.Linq.Expressions
-        case "NativeIntegerAttribute" when attributeType.IsLocalType():
-          // These are handled as part of type name handling.
-          return false;
-        case "NullableAttribute" when attributeType.IsLocalType():
-        case "NullableContextAttribute" when attributeType.IsLocalType():
-        case "NullablePublicOnlyAttribute" when attributeType.IsLocalType():
-          // These are handled as part of nullable reference type support.
-          return false;
-        // These are normally in the core library (handled above), but can also be embedded (typically in .NET Framework builds).
-        case "IsByRefLikeAttribute" when attributeType.IsLocalType():
-        case "IsReadOnlyAttribute" when attributeType.IsLocalType():
-          return false;
-      }
+        }
+        break;
+      case "System.Runtime.CompilerServices":
+        switch (attributeType.Name) {
+          case "AsyncStateMachineAttribute":
+          case "CompilationRelaxationsAttribute":
+          case "CompilerGeneratedAttribute":
+          case "IteratorStateMachineAttribute":
+          case "RuntimeCompatibilityAttribute":
+            // Not relevant to API
+            return false;
+          case "ExtensionAttribute":
+            // This is handled as part of method signature handling; we don't care about its presence on assemblies/classes
+            return false;
+          case "IsByRefLikeAttribute":
+            // This is handled as part of struct definition handling.
+            return false;
+          case "IsReadOnlyAttribute":
+            // This is handled as part of relevant handling:
+            // - type definitions (for readonly struct)
+            // - method & property definitions (for readonly struct members)
+            // - return types
+            return false;
+          case "IsUnmanagedAttribute":
+            // This is handled as part of generic type constraint handling.
+            return false;
+          case "NullableAttribute":
+          case "NullableContextAttribute":
+          case "NullablePublicOnlyAttribute":
+            // These are handled as part of nullable reference type support.
+            return false;
+          case "PreserveBaseOverridesAttribute":
+            // This is handled as part of method attribute handling.
+            return false;
+          case "DynamicAttribute":
+          case "NativeIntegerAttribute":
+          case "TupleElementNamesAttribute":
+            // This is handled as part of type name handling.
+            return false;
+        }
+        break;
+      case "System.Runtime.Versioning":
+        switch (attributeType.Name) {
+          case "RequiresPreviewFeaturesAttribute":
+            // Not relevant to API
+            return false;
+        }
+        break;
+      case "System.Security":
+        switch (attributeType.Name) {
+          case "UnverifiableCodeAttribute":
+            // Not relevant to API
+            return false;
+        }
+        break;
     }
     // Assume public API by default.
     return true;
@@ -337,8 +308,7 @@ internal static class CecilUtils {
   public static bool IsReadOnly(this ICustomAttributeProvider provider) {
     if (provider.HasCustomAttributes) {
       foreach (var ca in provider.CustomAttributes) {
-        if (ca.AttributeType.IsCoreLibraryType("System.Runtime.CompilerServices", "IsReadOnlyAttribute") ||
-            ca.AttributeType.IsLocalType("System.Runtime.CompilerServices", "IsReadOnlyAttribute")) {
+        if (ca.AttributeType.IsNamed("System.Runtime.CompilerServices", "IsReadOnlyAttribute")) {
           return true;
         }
       }
@@ -349,8 +319,7 @@ internal static class CecilUtils {
   public static bool IsUnmanaged(this GenericParameter gp) {
     if (gp.HasCustomAttributes) {
       foreach (var ca in gp.CustomAttributes) {
-        // These attributes are emitted in the assembly itself
-        if (ca.AttributeType.IsLocalType("System.Runtime.CompilerServices", "IsUnmanagedAttribute")) {
+        if (ca.AttributeType.IsNamed("System.Runtime.CompilerServices", "IsUnmanagedAttribute")) {
           return true;
         }
       }

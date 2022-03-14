@@ -199,8 +199,8 @@ internal class CSharpFormatter : CodeFormatter {
           if (isUnmanaged) {
             // Expectation: First constraint is on ValueType modified by UnmanagedType; if so, write that as "unmanaged"
             // Note that UnmanagedType is neither a core library type nor a locally synthesized one.
-            if (ct is RequiredModifierType rmt && rmt.ElementType.IsCoreLibraryType("System", "ValueType") &&
-                rmt.ModifierType.FullName == "System.Runtime.InteropServices.UnmanagedType") {
+            if (ct is RequiredModifierType rmt && rmt.ElementType.IsNamed("System", "ValueType") &&
+                rmt.ModifierType.IsNamed("System.Runtime.InteropServices", "UnmanagedType")) {
               sb.Append(this.CustomAttributesInline(gpc)).Append("unmanaged");
               first = false;
               isValueType = false;
@@ -209,7 +209,7 @@ internal class CSharpFormatter : CodeFormatter {
           }
           else {
             // Expectation: First constraint is on ValueType; if so, write that as "struct"
-            if (ct.IsCoreLibraryType("System", "ValueType")) {
+            if (ct.IsNamed("System", "ValueType")) {
               sb.Append(this.CustomAttributesInline(gpc)).Append("struct");
               first = false;
               isValueType = false;
@@ -534,7 +534,7 @@ internal class CSharpFormatter : CodeFormatter {
       // Detect extension methods
       if (md.HasCustomAttributes) {
         foreach (var ca in md.CustomAttributes) {
-          if (ca.AttributeType.IsCoreLibraryType("System.Runtime.CompilerServices", "ExtensionAttribute")) {
+          if (ca.AttributeType.IsNamed("System.Runtime.CompilerServices", "ExtensionAttribute")) {
             sb.Append("this ");
             break;
           }
@@ -610,7 +610,7 @@ internal class CSharpFormatter : CodeFormatter {
       // For `init`, it's not an attribute on the setter method, but rather a "required modifier" on its return type (void).
       // A bit weird, but whatever.
       if (method.ReturnType is RequiredModifierType rmt && rmt.ElementType == rmt.Module.TypeSystem.Void &&
-          rmt.ModifierType.IsCoreLibraryType("System.Runtime.CompilerServices", "IsExternalInit")) {
+          rmt.ModifierType.IsNamed("System.Runtime.CompilerServices", "IsExternalInit")) {
         sb.Append("init");
       }
       else {
@@ -681,7 +681,7 @@ internal class CSharpFormatter : CodeFormatter {
           else if (td.IsEnum && baseType.IsCoreLibraryType("System", "Enum")) {
             baseType = null;
           }
-          else if (td.IsValueType && baseType.IsCoreLibraryType("System", "ValueType")) {
+          else if (td.IsValueType && baseType.IsNamed("System", "ValueType")) {
             baseType = null;
           }
         }
@@ -795,7 +795,7 @@ internal class CSharpFormatter : CodeFormatter {
       case RequiredModifierType rmt: {
         var type = rmt.ElementType;
         var modifier = rmt.ModifierType;
-        if (modifier.IsCoreLibraryType("System.Runtime.InteropServices", "InAttribute") && type is ByReferenceType brt) {
+        if (modifier.IsNamed("System.Runtime.InteropServices", "InAttribute") && type is ByReferenceType brt) {
           // This signals a `ref readonly xxx` return type
           sb.Append("ref readonly ");
           tr = brt.ElementType;
@@ -881,7 +881,7 @@ internal class CSharpFormatter : CodeFormatter {
     // Any type gets an entry in [Dynamic]
     ++dynamicIndex;
     // Check for C# tuples (i.e. System.ValueTuple)
-    if (tr.IsGenericInstance && tr.IsCoreLibraryType() && tr.Namespace == "System" && tr.Name.StartsWith("ValueTuple`")) {
+    if (tr.IsGenericInstance && tr.IsNamed("System") && tr.Name.StartsWith("ValueTuple`")) {
       sb.Append('(');
       var element = 0;
       var elementNames = context.GetTupleElementNames();
@@ -891,7 +891,7 @@ internal class CSharpFormatter : CodeFormatter {
       foreach (var ga in genericArguments) {
         if (++item == 8 && tr.Name == "ValueTuple`8") {
           // a 10-element tuple is an 8-element tuple where the 8th element is a 3-element tuple
-          if (ga.IsGenericInstance && ga.IsCoreLibraryType() && ga.Namespace == "System" && ga.Name.StartsWith("ValueTuple`")) {
+          if (ga.IsGenericInstance && ga.IsNamed("System") && ga.Name.StartsWith("ValueTuple`")) {
             // skip this type
             ++dynamicIndex;
             // switch to this one and continue processing
@@ -936,7 +936,7 @@ internal class CSharpFormatter : CodeFormatter {
         // look for (and drop) modopt(.CallConvXXX) on the return type, keeping the XXXs
         while (returnType is OptionalModifierType omt) {
           var modifier = omt.ModifierType;
-          if (modifier.IsCoreLibraryType("System.Runtime.CompilerServices") && modifier.Name.StartsWith("CallConv")) {
+          if (modifier.IsNamed("System.Runtime.CompilerServices") && modifier.Name.StartsWith("CallConv")) {
             callingConventions.Add(modifier.Name.Substring(8));
             returnType = omt.ElementType;
             continue;
