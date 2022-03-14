@@ -86,17 +86,36 @@ public static class Program {
     // Default to C#
     formatter ??= new CSharpFormatter();
 
-    using var ad = AssemblyDefinition.ReadAssembly(assembly, Program.CreateReaderParameters(assembly, dependencyPath));
+    try {
+      using var ad = AssemblyDefinition.ReadAssembly(assembly, Program.CreateReaderParameters(assembly, dependencyPath));
 
-    using var reference = referenceSource == "-" ? Console.Out : new StreamWriter(File.Create(referenceSource), Encoding.UTF8);
+      using var reference = referenceSource == "-" ? Console.Out : new StreamWriter(File.Create(referenceSource), Encoding.UTF8);
 
-    foreach (var line in formatter.FormatPublicApi(ad)) {
-      if (line is null) {
-        reference.WriteLine();
+      foreach (var line in formatter.FormatPublicApi(ad)) {
+        if (line is null) {
+          reference.WriteLine();
+        }
+        else {
+          reference.WriteLine(line);
+        }
       }
-      else {
-        reference.WriteLine(line);
+    }
+    catch (AssemblyResolutionException are) {
+      var fg = Console.ForegroundColor;
+      try {
+        Console.ForegroundColor = ConsoleColor.Red;
+        Console.Write("ERROR: ");
+        Console.ForegroundColor = ConsoleColor.Yellow;
+        Console.Write("There was a problem resolving a dependency (");
+        Console.ForegroundColor = ConsoleColor.White;
+        Console.Write(are.AssemblyReference);
+        Console.ForegroundColor = ConsoleColor.Yellow;
+        Console.Out.WriteLine("); please provide it using the -r option.");
       }
+      finally {
+        Console.ForegroundColor = fg;
+      }
+      return 16;
     }
 
     return 0;
