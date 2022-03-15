@@ -60,13 +60,18 @@ internal class CSharpFormatter : CodeFormatter {
   }
 
   protected override string CustomAttributeArgument(CustomAttributeArgument argument) {
-    if (argument.Value is not CustomAttributeArgument[] array) {
-      return this.Value(argument.Type, argument.Value);
+    // Sometimes there's multiple levels of CustomAttributeArgument; mainly seems to be for cases where the argument is declared as
+    // "object", where the outer CAA is of type System.Object and the inner one has the "real" argument type and value.
+    while (argument.Value is CustomAttributeArgument caa) {
+      argument = caa;
     }
-    var arguments = array.Select(this.CustomAttributeArgument);
-    var sb = new StringBuilder();
-    sb.Append("new ").Append(this.TypeName(argument.Type)).Append(" { ").AppendJoin(", ", arguments).Append(" }");
-    return sb.ToString();
+    if (argument.Value is CustomAttributeArgument[] array) {
+      var arguments = array.Select(this.CustomAttributeArgument);
+      var sb = new StringBuilder();
+      sb.Append("new ").Append(this.TypeName(argument.Type)).Append(" { ").AppendJoin(", ", arguments).Append(" }");
+      return sb.ToString();
+    }
+    return this.Value(argument.Type, argument.Value);
   }
 
   protected override IEnumerable<string?> CustomAttributes(ICustomAttributeProvider cap, int indent) {
