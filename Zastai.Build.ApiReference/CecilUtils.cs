@@ -177,7 +177,15 @@ internal static class CecilUtils {
 
   public static bool IsPublicApi(this ICustomAttribute ca) {
     var attributeType = ca.AttributeType;
+    // FIXME: Perhaps this should be a list of which one(s) to retain instead...
     switch (attributeType.Namespace) {
+      case "":
+        switch (attributeType.Name) {
+          case "__DynamicallyInvokableAttribute":
+            // Not relevant to API
+            return false;
+        }
+        break;
       case "System":
         switch (attributeType.Name) {
           case "CLSCompliantAttribute":
@@ -201,8 +209,19 @@ internal static class CecilUtils {
             return false;
         }
         break;
+      case "System.CodeDom.Compiler":
+        switch (attributeType.Name) {
+          case "GeneratedCodeAttribute":
+            // Not relevant to API
+            return false;
+        }
+        break;
       case "System.ComponentModel":
         switch (attributeType.Name) {
+          case "BrowsableAttribute":
+          case "DesignOnlyAttribute":
+          case "DesignTimeVisibleAttribute":
+          case "DesignerSerializationVisibilityAttribute":
           case "EditorBrowsableAttribute":
             // Not relevant to API
             return false;
@@ -211,9 +230,13 @@ internal static class CecilUtils {
       case "System.Diagnostics":
         switch (attributeType.Name) {
           case "DebuggableAttribute":
+          case "DebuggerBrowsableAttribute":
           case "DebuggerDisplayAttribute":
           case "DebuggerHiddenAttribute":
+          case "DebuggerNonUserCodeAttribute":
           case "DebuggerStepThroughAttribute":
+          case "DebuggerTypeProxyAttribute":
+          case "StackTraceHiddenAttribute":
             // Not relevant to API
             return false;
         }
@@ -244,11 +267,16 @@ internal static class CecilUtils {
         break;
       case "System.Runtime.CompilerServices":
         switch (attributeType.Name) {
+          case "__BlockReflectionAttribute":
+          case "AsyncIteratorStateMachineAttribute":
+          case "AsyncMethodBuilderAttribute":
           case "AsyncStateMachineAttribute":
           case "CompilationRelaxationsAttribute":
           case "CompilerGeneratedAttribute":
+          case "IntrinsicAttribute":
           case "IteratorStateMachineAttribute":
           case "RuntimeCompatibilityAttribute":
+          case "SkipLocalsInitAttribute":
             // Not relevant to API
             return false;
           case "ExtensionAttribute":
@@ -283,6 +311,7 @@ internal static class CecilUtils {
         break;
       case "System.Runtime.Versioning":
         switch (attributeType.Name) {
+          case "NonVersionableAttribute":
           case "RequiresPreviewFeaturesAttribute":
             // Not relevant to API
             return false;
@@ -290,11 +319,18 @@ internal static class CecilUtils {
         break;
       case "System.Security":
         switch (attributeType.Name) {
+          case "AllowPartiallyTrustedCallersAttribute":
+          case "SecurityCriticalAttribute":
+          case "SecuritySafeCriticalAttribute":
+          case "SecurityTransparentAttribute":
           case "UnverifiableCodeAttribute":
             // Not relevant to API
             return false;
         }
         break;
+      case "Xunit.Sdk":
+        // Assume this is all unit tests and therefore irrelevant to API
+        return false;
     }
     // Assume public API by default.
     return true;
