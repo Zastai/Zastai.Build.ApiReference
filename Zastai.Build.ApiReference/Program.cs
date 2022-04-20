@@ -53,8 +53,13 @@ public static class Program {
 
     CodeFormatter? formatter = null;
     var dependencyPath = new List<string>();
+    var includedAttributes = new List<string>();
+    var excludedAttributes = new List<string>();
     for (var i = 2; i < args.Length; i += 2) {
       switch (args[i]) {
+        case "-ea":
+          excludedAttributes.Add(args[i + 1]);
+          break;
         case "-f":
           switch (args[i + 1].ToLowerInvariant()) {
             case "c#":
@@ -75,6 +80,9 @@ public static class Program {
               return 4;
           }
           break;
+        case "-ia":
+          includedAttributes.Add(args[i + 1]);
+          break;
         case "-r":
           dependencyPath.Add(args[i + 1]);
           break;
@@ -85,6 +93,9 @@ public static class Program {
 
     // Default to C#
     formatter ??= new CSharpFormatter();
+
+    formatter.IncludeCustomAttributes(includedAttributes);
+    formatter.ExcludeCustomAttributes(excludedAttributes);
 
     try {
       using var ad = AssemblyDefinition.ReadAssembly(assembly, Program.CreateReaderParameters(assembly, dependencyPath));

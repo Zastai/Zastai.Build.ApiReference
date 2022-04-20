@@ -9,7 +9,7 @@ are easy to detect and track.
 
 ## Configuration
 
-The following properties can be set in the project the affect the
+The following properties can be set in the project to affect the
 behaviour:
 
 | Property                            | Description                                                                                                                                                                                        |
@@ -24,6 +24,22 @@ behaviour:
 | MonoRunner                          | The program used to run the generator under Mono.<br/>Defaults to `mono --runtime=v4.0.30319`.                                                                                                     |
 | NetCoreRunner                       | The program used to run the generator under .NET Core.<br/>Defaults to `dotnet`.                                                                                                                   |
 | SkipApiReferenceOutputPathFileWrite | Determines whether the output files are registered in `@(FileWrites)`.<br/>Defaults to `false`.                                                                                                    |
+
+In addition, the choice of which attributes to consider part of the
+public API is based on two item groups:
+
+| Property                     | Description                                                                                                                 |
+|------------------------------|-----------------------------------------------------------------------------------------------------------------------------|
+| ApiReferenceIncludeAttribute | Attributes to include. If not specified, all attributes are include, unless excluded via `@(ApiReferenceExcludeAttribute)`. |
+| ApiReferenceExcludeAttribute | Attributes to exclude. Applies to attributes included via `@(ApiReferenceIncludeAttribute)`.                                |
+
+In both cases, shell wildcards (`?` and `*`) are supported. Names match
+against the full internal name of the attribute type (like
+``Namespace.GenericTypeName`2/NestedAttribute``).
+Attributes handled as part of syntax generation (like
+`System.ParamArrayAttribute` and
+`System.Runtime.CompilerServices.ExtensionAttribute`) are never
+included.
 
 ## Release Notes
 

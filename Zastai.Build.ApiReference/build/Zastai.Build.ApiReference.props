@@ -1,0 +1,19 @@
+<Project>
+
+  <!-- Configuration Defaults; can be modified in the project. -->
+  <ItemGroup>
+
+    <!-- Attributes to include in the API reference.
+       - Shell wildcards (?, *) are supported.
+       - If this item group is empty, all attributes are included unless further excluded via @(ApiReferenceExcludeAttribute). -->
+    <!-- <ApiReferenceIncludeAttribute Include="*" /> -->
+
+    <!-- Attributes to exclude from the API reference; applied to attributes included via @(ApiReferenceIncludeAttribute).
+       - Shell wildcards are supported.
+       - If this item group is empty, all attributes are included. -->
+    <ApiReferenceExcludeAttribute Include="__DynamicallyInvokableAttribute" />
+    <ApiReferenceExcludeAttribute Include="System.Reflection.Assembly*Attribute" />
+
+  </ItemGroup>
+
+</Project>

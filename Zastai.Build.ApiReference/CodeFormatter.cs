@@ -1,9 +1,12 @@
-﻿using System.Globalization;
-using System.Linq;
+﻿using System.Linq;
 
 namespace Zastai.Build.ApiReference;
 
 internal abstract class CodeFormatter {
+
+  private readonly ISet<string> _attributesToExclude = new HashSet<string>();
+
+  private readonly ISet<string> _attributesToInclude = new HashSet<string>();
 
   protected string? CurrentNamespace { get; private set; }
 
@@ -51,7 +54,7 @@ internal abstract class CodeFormatter {
     // Sort by the (full) type name; unfortunately, I'm not sure how to sort duplicates in a stable way.
     var sortedAttributes = new SortedDictionary<string, IList<CustomAttribute>>();
     foreach (var ca in attributes) {
-      if (!ca.IsPublicApi()) {
+      if (!this.Retain(ca)) {
         continue;
       }
       var attributeType = ca.AttributeType.FullName;
@@ -145,6 +148,15 @@ internal abstract class CodeFormatter {
     return exportedTypes.Count == 0 ? Enumerable.Empty<string?>() : this.ExportedTypes(exportedTypes);
   }
 
+  public void ExcludeCustomAttributes(IEnumerable<string> patterns) {
+    foreach (var pattern in patterns) {
+      if (string.IsNullOrWhiteSpace(pattern)) {
+        continue;
+      }
+      this._attributesToExclude.Add(pattern.Trim());
+    }
+  }
+
   protected abstract IEnumerable<string?> ExportedTypes(SortedDictionary<string, IDictionary<string, ExportedType>> exportedTypes);
 
   protected abstract string Field(FieldDefinition fd, int indent);
@@ -195,6 +207,24 @@ internal abstract class CodeFormatter {
     yield return this.LineComment("=== Generated API Reference === DO NOT EDIT BY HAND ===");
   }
 
+  public IEnumerable<string?> FormatPublicApi(AssemblyDefinition ad) {
+    foreach (var line in this.FileHeader(ad)) {
+      yield return line;
+    }
+    foreach (var line in this.TopLevelAttributes(ad)) {
+      yield return line;
+    }
+    foreach (var line in this.ExportedTypes(ad)) {
+      yield return line;
+    }
+    foreach (var line in this.TopLevelTypes(ad)) {
+      yield return line;
+    }
+    foreach (var line in this.FileFooter(ad)) {
+      yield return line;
+    }
+  }
+
   protected abstract string? GenericParameterConstraints(GenericParameter gp);
 
   protected IEnumerable<string> GenericParameterConstraints(IGenericParameterProvider provider, int indent) {
@@ -209,6 +239,15 @@ internal abstract class CodeFormatter {
         sb.Append(' ', indent).Append(constraints);
         yield return sb.ToString();
       }
+    }
+  }
+
+  public void IncludeCustomAttributes(IEnumerable<string> patterns) {
+    foreach (var pattern in patterns) {
+      if (string.IsNullOrWhiteSpace(pattern)) {
+        continue;
+      }
+      this._attributesToInclude.Add(pattern.Trim());
     }
   }
 
@@ -391,22 +430,14 @@ internal abstract class CodeFormatter {
 
   protected abstract IEnumerable<string?> Property(PropertyDefinition pd, int indent);
 
-  public IEnumerable<string?> FormatPublicApi(AssemblyDefinition ad) {
-    foreach (var line in this.FileHeader(ad)) {
-      yield return line;
+  protected bool Retain(ICustomAttribute ca) {
+    var name = ca.AttributeType.FullName;
+    if (this._attributesToInclude.Count > 0) {
+      if (!this._attributesToInclude.Any(pattern => name.Matches(pattern))) {
+        return false;
+      }
     }
-    foreach (var line in this.TopLevelAttributes(ad)) {
-      yield return line;
-    }
-    foreach (var line in this.ExportedTypes(ad)) {
-      yield return line;
-    }
-    foreach (var line in this.TopLevelTypes(ad)) {
-      yield return line;
-    }
-    foreach (var line in this.FileFooter(ad)) {
-      yield return line;
-    }
+    return this._attributesToExclude.All(pattern => !name.Matches(pattern));
   }
 
   private IEnumerable<string?> TopLevelAttributes(AssemblyDefinition ad) {
