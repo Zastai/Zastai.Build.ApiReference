@@ -4,6 +4,7 @@
   <!-- Package Versions -->
   <ItemGroup>
     <PackageVersion Include="JetBrains.Annotations" Version="2022.1.0" />
+    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="1.1.1" />
     <PackageVersion Include="Mono.Cecil" Version="0.11.4" />
   </ItemGroup>
 

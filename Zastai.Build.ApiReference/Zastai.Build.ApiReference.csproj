@@ -7,12 +7,25 @@
   </PropertyGroup>
 
   <PropertyGroup>
+    <Copyright>Copyright © 2022 Tim Van Holder. All rights reserved.</Copyright>
+    <RepositoryUrl>https://github.com/Zastai/Zastai.Build.ApiReference</RepositoryUrl>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <Description>This package generates an API reference for the project it's added to, to allow easy API diffs.</Description>
+    <PackageProjectUrl>$(RepositoryUrl)/blob/main/README.md</PackageProjectUrl>
+    <PackageReadMeFile>README.md</PackageReadMeFile>
+    <PackageTags>C# API Reference</PackageTags>
+    <Title>API Reference Generator</Title>
+    <Version>1.0.0-pre</Version>
+  </PropertyGroup>
+
+  <PropertyGroup>
     <BuildOutputTargetFolder>tools</BuildOutputTargetFolder>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageType>MSBuildSdk</PackageType>
     <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
-    <Version>1.0.0-pre</Version>
   </PropertyGroup>
 
   <PropertyGroup>
@@ -23,6 +36,7 @@
 
   <ItemGroup>
     <PackageReference Include="JetBrains.Annotations" />
+    <PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="all" />
     <PackageReference Include="Mono.Cecil" />
   </ItemGroup>
 
@@ -41,6 +55,14 @@
   <ItemGroup>
     <None Include="build/*.props;build/*.targets" Pack="true">
       <PackagePath>build/%(Filename)%(Extension)</PackagePath>
+    </None>
+    <None Include="../LICENSE.md">
+      <Pack>true</Pack>
+      <PackagePath>LICENSE.md</PackagePath>
+    </None>
+    <None Include="../README.md">
+      <Pack>true</Pack>
+      <PackagePath>README.md</PackagePath>
     </None>
   </ItemGroup>
 
