@@ -45,7 +45,12 @@ included.
 
 These are available [on GitHub][GHReleases].
 
+## Credits
+
+Package icon created by [DinosoftLabs - FlatIcon][PackageIcon].
+
 [CI-S]: https://img.shields.io/appveyor/build/zastai/zastai-build-apireference
 [CI-L]: https://ci.appveyor.com/project/Zastai/zastai-build-apireference
 
 [GHReleases]: https://github.com/Zastai/Zastai.Build.APIReference/releases
+[PackageIcon]: https://www.flaticon.com/free-icon/browser_718064
