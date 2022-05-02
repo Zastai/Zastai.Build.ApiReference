@@ -406,8 +406,16 @@ internal class CSharpFormatter : CodeFormatter {
             case "False":
               sb.Append("false");
               break;
+            case "LogicalAnd":
+              // Not overridable in C#.
+              sb.Append("&&");
+              break;
             case "LogicalNot":
               sb.Append('!');
+              break;
+            case "LogicalOr":
+              // Not overridable in C#.
+              sb.Append("||");
               break;
             case "True":
               sb.Append("true");
@@ -433,7 +441,7 @@ internal class CSharpFormatter : CodeFormatter {
               sb.Append('^');
               break;
             case "Exponent":
-              // No C# operator for this
+              // Not available in C#, but defined in ECMA-335.
               sb.Append("**");
               break;
             case "Increment":
@@ -454,9 +462,64 @@ internal class CSharpFormatter : CodeFormatter {
             case "RightShift":
               sb.Append(">>");
               break;
+            case "SignedRightShift":
+              // Not available in C#, but defined in ECMA-335.
+              sb.Append(">> /* signed */");
+              break;
             case "Subtraction":
             case "UnaryNegation":
               sb.Append('-');
+              break;
+            case "UnsignedRightShift":
+              sb.Append(">>>");
+              break;
+            // Assignments - none of these are overridable in C# (even when they exist)
+            case "AdditionAssignment":
+              sb.Append("+=");
+              break;
+            case "Assign":
+              // Not available in C#, but defined in ECMA-335.
+              sb.Append("=");
+              break;
+            case "BitwiseAndAssignment":
+              sb.Append("&=");
+              break;
+            case "BitwiseOrAssignment":
+              sb.Append("|=");
+              break;
+            case "DivisionAssignment":
+              sb.Append("/=");
+              break;
+            case "ExclusiveOrAssignment":
+              sb.Append("^=");
+              break;
+            case "ModulusAssignment":
+              sb.Append("%=");
+              break;
+            case "MultiplicationAssignment":
+              sb.Append("*=");
+              break;
+            case "LeftShiftAssignment":
+              sb.Append("<<=");
+              break;
+            case "RightShiftAssignment":
+              sb.Append(">>=");
+              break;
+            case "SubtractionAssignment":
+              sb.Append("*=");
+              break;
+            case "UnsignedRightShiftAssignment":
+              sb.Append(">>>=");
+              break;
+            // Special Cases - none of these are overridable in C#
+            case "Comma":
+              sb.Append(',');
+              break;
+            case "MemberAccess":
+              sb.Append("->");
+              break;
+            case "PointerToMemberSelection":
+              sb.Append("->*");
               break;
             default:
               sb.Append("/* TODO: Map Operator Correctly */ ").Append(op);
