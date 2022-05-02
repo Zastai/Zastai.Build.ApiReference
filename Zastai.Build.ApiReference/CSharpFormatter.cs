@@ -377,8 +377,12 @@ internal class CSharpFormatter : CodeFormatter {
       // Other Special Names - these will probably look/work fine if not treated specially
       if (md.Name.StartsWith("op_")) {
         var op = md.Name.Substring(3);
-        if (op is "Explicit" or "Implicit") {
-          sb.Append(op.ToLowerInvariant()).Append(" operator ").Append(this.TypeName(md.ReturnType, md.MethodReturnType));
+        if (op is "CheckedExplicit" or "Explicit" or "Implicit") {
+          sb.Append(op is "Implicit" ? "implicit" : "explicit").Append(" operator ");
+          if (op == "CheckedExplicit") {
+            sb.Append("checked ");
+          }
+          sb.Append(this.TypeName(md.ReturnType, md.MethodReturnType));
         }
         else {
           sb.Append(this.TypeName(md.ReturnType, md.MethodReturnType)).Append(" operator ");
@@ -430,6 +434,24 @@ internal class CSharpFormatter : CodeFormatter {
               break;
             case "BitwiseOr":
               sb.Append("|");
+              break;
+            case "CheckedAddition":
+              sb.Append("checked +");
+              break;
+            case "CheckedDecrement":
+              sb.Append("checked --");
+              break;
+            case "CheckedDivision":
+              sb.Append("checked /");
+              break;
+            case "CheckedIncrement":
+              sb.Append("checked --");
+              break;
+            case "CheckedMultiplication":
+              sb.Append("checked *");
+              break;
+            case "CheckedSubtraction":
+              sb.Append("checked -");
               break;
             case "Decrement":
               sb.Append("--");
