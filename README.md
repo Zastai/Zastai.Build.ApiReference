@@ -1,4 +1,4 @@
-# Zastai.Build.Reference  [![Build Status][CI-S]][CI-L]
+# Zastai.Build.ApiReference  [![Build Status][CI-S]][CI-L] [![NuGet Package Version][NuGet-S]][NuGet-L]
 
 Extends an MSBuild project to produce an API reference source for each
 output assembly.
@@ -51,6 +51,9 @@ Package icon created by [DinosoftLabs - FlatIcon][PackageIcon].
 
 [CI-S]: https://img.shields.io/appveyor/build/zastai/zastai-build-apireference
 [CI-L]: https://ci.appveyor.com/project/Zastai/zastai-build-apireference
+
+[NuGet-S]: https://img.shields.io/nuget/v/Zastai.Build.ApiReference
+[NuGet-L]: https://www.nuget.org/packages/Zastai.Build.ApiReference
 
 [GHReleases]: https://github.com/Zastai/Zastai.Build.APIReference/releases
 [PackageIcon]: https://www.flaticon.com/free-icon/browser_718064
