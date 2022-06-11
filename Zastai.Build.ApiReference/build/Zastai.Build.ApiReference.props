@@ -4,15 +4,31 @@
   <ItemGroup>
 
     <!-- Attributes to include in the API reference.
-       - Shell wildcards (?, *) are supported.
        - If this item group is empty, all attributes are included unless further excluded via @(ApiReferenceExcludeAttribute). -->
     <!-- <ApiReferenceIncludeAttribute Include="*" /> -->
 
     <!-- Attributes to exclude from the API reference; applied to attributes included via @(ApiReferenceIncludeAttribute).
-       - Shell wildcards are supported.
        - If this item group is empty, all attributes are included. -->
     <ApiReferenceExcludeAttribute Include="__DynamicallyInvokableAttribute" />
-    <ApiReferenceExcludeAttribute Include="System.Reflection.Assembly*Attribute" />
+    <ApiReferenceExcludeAttribute Include="System.Reflection.AssemblyAlgorithmIdAttribute" />
+    <ApiReferenceExcludeAttribute Include="System.Reflection.AssemblyCompanyAttribute" />
+    <ApiReferenceExcludeAttribute Include="System.Reflection.AssemblyConfigurationAttribute" />
+    <ApiReferenceExcludeAttribute Include="System.Reflection.AssemblyCopyrightAttribute" />
+    <ApiReferenceExcludeAttribute Include="System.Reflection.AssemblyCultureAttribute" />
+    <ApiReferenceExcludeAttribute Include="System.Reflection.AssemblyDefaultAliasAttribute" />
+    <ApiReferenceExcludeAttribute Include="System.Reflection.AssemblyDelaySignAttribute" />
+    <ApiReferenceExcludeAttribute Include="System.Reflection.AssemblyDescriptionAttribute" />
+    <ApiReferenceExcludeAttribute Include="System.Reflection.AssemblyFileVersionAttribute" />
+    <ApiReferenceExcludeAttribute Include="System.Reflection.AssemblyFlagsAttribute" />
+    <ApiReferenceExcludeAttribute Include="System.Reflection.AssemblyInformationalVersionAttribute" />
+    <ApiReferenceExcludeAttribute Include="System.Reflection.AssemblyKeyFileAttribute" />
+    <ApiReferenceExcludeAttribute Include="System.Reflection.AssemblyKeyNameAttribute" />
+    <ApiReferenceExcludeAttribute Include="System.Reflection.AssemblyMetadataAttribute" />
+    <ApiReferenceExcludeAttribute Include="System.Reflection.AssemblyProductAttribute" />
+    <ApiReferenceExcludeAttribute Include="System.Reflection.AssemblySignatureKeyAttribute" />
+    <ApiReferenceExcludeAttribute Include="System.Reflection.AssemblyTitleAttribute" />
+    <ApiReferenceExcludeAttribute Include="System.Reflection.AssemblyTrademarkAttribute" />
+    <ApiReferenceExcludeAttribute Include="System.Reflection.AssemblyVersionAttribute" />
 
   </ItemGroup>
 

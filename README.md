@@ -96,9 +96,8 @@ based on two item groups:
 | ApiReferenceIncludeAttribute | Attributes to include. If not specified, all attributes are included, unless excluded via `@(ApiReferenceExcludeAttribute)`.    |
 | ApiReferenceExcludeAttribute | Attributes to exclude. Applies to attributes included (whether explicitly or implicitly) via `@(ApiReferenceIncludeAttribute)`. |
 
-In both cases, shell wildcards (`?` and `*`) are supported. Names match
-against the full internal name of the attribute type (like
-``Namespace.GenericTypeName`2/NestedAttribute``).
+In both cases, names match against the full internal name of the
+attribute type (like ``Namespace.GenericTypeName`2/NestedAttribute``).
 Attributes handled as part of syntax generation (like
 `System.ParamArrayAttribute` and
 `System.Runtime.CompilerServices.ExtensionAttribute`) are never

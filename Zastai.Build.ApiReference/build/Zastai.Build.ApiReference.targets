@@ -84,13 +84,13 @@
     <!-- Attributes to Include: Remove Duplicates and Pass. -->
     <ItemGroup>
       <_ApiReferenceIncludeAttributes Include="%(APIReferenceIncludeAttribute.Identity)" />
-      <_ApiReferenceCommandLineOptions Include="-ia &quot;$(_ApiReferenceIncludeAttributes)&quot;" />
+      <_ApiReferenceCommandLineOptions Include="-ia &quot;%(_ApiReferenceIncludeAttributes.Identity)&quot;" />
     </ItemGroup>
 
     <!-- Attributes to Exclude: Remove Duplicates and Pass. -->
     <ItemGroup>
       <_ApiReferenceExcludeAttributes Include="%(APIReferenceExcludeAttribute.Identity)" />
-      <_ApiReferenceCommandLineOptions Include="-ea &quot;$(_ApiReferenceExcludeAttributes)&quot;" />
+      <_ApiReferenceCommandLineOptions Include="-ea &quot;%(_ApiReferenceExcludeAttributes.Identity)&quot;" />
     </ItemGroup>
 
     <!-- Reference Path Configured: Use. -->
