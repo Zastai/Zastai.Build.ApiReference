@@ -430,7 +430,14 @@ internal abstract class CodeFormatter {
 
   protected abstract IEnumerable<string?> Property(PropertyDefinition pd, int indent);
 
+  protected abstract bool IsHandledBySyntax(ICustomAttribute ca);
+
   protected bool Retain(ICustomAttribute ca) {
+    // Attributes handled by syntax (like [Extension] and [ParamArray] for C#) are never retained.
+    if (this.IsHandledBySyntax(ca)) {
+      return false;
+    }
+    // For everything else, use the configured inclusion/exclusion processing
     var name = ca.AttributeType.FullName;
     if (this._attributesToInclude.Count > 0) {
       if (!this._attributesToInclude.Any(pattern => name.Matches(pattern))) {

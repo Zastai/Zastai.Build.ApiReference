@@ -273,6 +273,64 @@ internal class CSharpFormatter : CodeFormatter {
     return sb.ToString();
   }
 
+  protected override bool IsHandledBySyntax(ICustomAttribute ca) {
+    var at = ca.AttributeType;
+    if (at is null) {
+      return false;
+    }
+    switch (at.Namespace) {
+      case "System":
+        switch (at.Name) {
+          case "ParamArrayAttribute":
+            // Mapped to "params" keyword on parameters.
+            return true;
+        }
+        break;
+      case "System.Runtime.CompilerServices":
+        switch (at.Name) {
+          case "AsyncStateMachineAttribute":
+          case "CompilerGeneratedAttribute":
+          case "IteratorStateMachineAttribute":
+          case "ReferenceAssemblyAttribute":
+            // Guaranteed not to be relevant to the API.
+            return true;
+          case "ExtensionAttribute":
+            // Not relevant at assembly/type level (just flags presence of extension methods).
+            // Mapped to "this" keyword on parameters.
+            return true;
+          case "DynamicAttribute":
+            // Mapped to "dynamic" keyword.
+            return true;
+          case "IsByRefLikeAttribute":
+            // Mapped to "ref" keyword.
+            return true;
+          case "IsReadOnlyAttribute":
+            // Mapped to "readonly" keyword.
+            return true;
+          case "IsUnmanagedAttribute":
+            // Mapped to "unmanaged" keyword.
+            return true;
+          case "NativeIntegerAttribute":
+            // Mapped to "nint"/"nuint" keywords.
+            return true;
+          case "NonNullTypesAttribute":
+          case "NullableAttribute":
+          case "NullableContextAttribute":
+          case "NullablePublicOnlyAttribute":
+            // TODO: These should be interpreted in order to add '?' after a type name where applicable
+            return true;
+          case "PreserveBaseOverridesAttribute":
+            // Used to detect covariant return types.
+            return true;
+          case "TupleElementNamesAttribute":
+            // Names extracted for use in tuple syntax.
+            return true;
+        }
+        break;
+    }
+    return false;
+  }
+
   protected override string LineComment(string comment) => $"// {comment}".TrimEnd();
 
   protected override string Literal(bool value) => value ? "true" : "false";
