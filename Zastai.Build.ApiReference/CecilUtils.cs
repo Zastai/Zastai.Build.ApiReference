@@ -45,29 +45,86 @@ internal static class CecilUtils {
     return false;
   }
 
-  private static bool HasNullabilityFlag(this ICustomAttributeProvider? cap, string attribute, byte value, int idx) {
-    if (cap is not null && cap.HasCustomAttributes) {
+  public static Nullability? GetNullability(this ICustomAttributeProvider cap, MethodDefinition? context, int idx = 0)
+    => cap.GetNullability(idx) ?? context.GetNullabilityContext();
+
+  public static Nullability? GetNullability(this ICustomAttributeProvider cap, MethodDefinition? methodContext,
+                                            TypeDefinition? typeContext, int idx = 0)
+    => cap.GetNullability(idx) ?? methodContext.GetNullabilityContext() ?? typeContext.GetNullabilityContext();
+
+  public static Nullability? GetNullability(this ICustomAttributeProvider cap, TypeDefinition? context, int idx = 0)
+    => cap.GetNullability(idx) ?? context.GetNullabilityContext();
+
+  public static Nullability? GetNullability(this ICustomAttributeProvider cap, int idx = 0) {
+    if (cap.HasCustomAttributes) {
       foreach (var ca in cap.CustomAttributes) {
-        if (ca.AttributeType.IsNamed("System.Runtime.CompilerServices", attribute)) {
+        if (ca.AttributeType.IsNamed("System.Runtime.CompilerServices", "NullableAttribute")) {
           if (ca.HasConstructorArguments && ca.ConstructorArguments.Count == 1) {
             var arg = ca.ConstructorArguments[0];
-            if (arg.Value is CustomAttributeArgument[] values && values.Length > idx) {
-              arg = values[idx];
+            if (arg.Value is CustomAttributeArgument[] values) {
+              if (values.Length > idx) {
+                arg = values[idx];
+              }
+              else {
+                // There is a array of values but not for this index: should really be an error, but assume null-oblivious.
+                return Nullability.Oblivious;
+              }
             }
-            else if (idx != 0) {
-              return false;
+            if (arg.Type == arg.Type.Module.TypeSystem.Byte && arg.Value is byte b) {
+              return (Nullability) b;
             }
-            return arg.Type == arg.Type.Module.TypeSystem.Byte && arg.Value is byte b && b == value;
           }
-          return false;
+          // Attribute present: assume null-oblivious when we can't get a definite value
+          return Nullability.Oblivious;
         }
       }
     }
-    return false;
+    // No attribute: unknown - context needed
+    return null;
   }
 
-  private static bool HasNullableFlag(this ICustomAttributeProvider? cap, byte value, int idx)
-    => cap.HasNullabilityFlag("NullableAttribute", value, idx);
+  private static Nullability? GetNullabilityContext(this MethodDefinition? md) {
+    if (md is not null) {
+      var nullability = md.GetNullabilityContextInternal();
+      if (nullability.HasValue) {
+        return nullability;
+      }
+      // No attribute: get from parent context (i.e. enclosing type).
+      return md.DeclaringType.GetNullabilityContext();
+    }
+    return null;
+  }
+
+  private static Nullability? GetNullabilityContext(this TypeDefinition? td) {
+    while (td is not null) {
+      var nullability = td.GetNullabilityContextInternal();
+      if (nullability.HasValue) {
+        return nullability;
+      }
+      // No attribute: get from parent context (i.e. enclosing type).
+      td = td.DeclaringType;
+    }
+    return null;
+  }
+
+  private static Nullability? GetNullabilityContextInternal(this ICustomAttributeProvider? cap) {
+    if (cap is not null && cap.HasCustomAttributes) {
+      foreach (var ca in cap.CustomAttributes) {
+        if (ca.AttributeType.IsNamed("System.Runtime.CompilerServices", "NullableContextAttribute")) {
+          if (ca.HasConstructorArguments && ca.ConstructorArguments.Count == 1) {
+            var arg = ca.ConstructorArguments[0];
+            if (arg.Type == arg.Type.Module.TypeSystem.Byte && arg.Value is byte b) {
+              return (Nullability) b;
+            }
+          }
+          // Attribute present: assume 0 when we can't get a definite value
+          return Nullability.Oblivious;
+        }
+      }
+    }
+    // No attribute: unknown - check parent context
+    return null;
+  }
 
   public static MethodDefinition? IfPublicApi(this MethodDefinition? method) {
     if (method is null) {
@@ -164,8 +221,6 @@ internal static class CecilUtils {
     }
     return false;
   }
-
-  public static bool IsNullable(this ICustomAttributeProvider? cap, int idx = 0) => cap.HasNullableFlag(2, idx);
 
   public static bool IsParamArray(this ParameterDefinition pd)
     => pd.HasCustomAttributes && pd.CustomAttributes.Any(ca => ca.AttributeType.IsNamed("System", "ParamArrayAttribute"));

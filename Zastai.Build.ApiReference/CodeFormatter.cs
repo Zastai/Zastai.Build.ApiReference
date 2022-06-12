@@ -94,7 +94,7 @@ internal abstract class CodeFormatter {
 
   protected abstract string EnumField(FieldDefinition fd, int indent);
 
-  protected virtual string EnumValue(TypeDefinition enumType, string name) => $"{this.TypeName(enumType)}.{name}";
+  protected abstract string EnumValue(TypeDefinition enumType, string name);
 
   protected abstract string Event(EventDefinition ed, int indent);
 
@@ -511,8 +511,6 @@ internal abstract class CodeFormatter {
   protected virtual IEnumerable<string?> TypeHeader(TypeDefinition td) {
     yield return null;
   }
-
-  protected abstract string TypeName(TypeReference tr, ICustomAttributeProvider? context = null);
 
   protected abstract string TypeOf(TypeReference tr);
 

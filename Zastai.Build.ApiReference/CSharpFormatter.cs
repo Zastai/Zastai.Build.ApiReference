@@ -5,6 +5,41 @@ namespace Zastai.Build.ApiReference;
 
 internal class CSharpFormatter : CodeFormatter {
 
+  protected sealed class TypeNameContext {
+
+    public TypeNameContext(ICustomAttributeProvider? main, MethodDefinition? method = null, TypeDefinition? type = null) {
+      this.Main = main;
+      this.Method = method;
+      this.Type = type;
+    }
+
+    public readonly ICustomAttributeProvider? Main;
+
+    public readonly MethodDefinition? Method;
+
+    public readonly TypeDefinition? Type;
+
+    // 3 things we care about are handled by attributes on the context:
+    // - [Dynamic] to distinguish `dynamic` from `object`
+    //   - in simple/normal context this has no arguments
+    //   - in a context with multiple types (`dynamic[]`, tuple, ...) it has an array with 1 bool argument per type
+    // - [NativeInteger] to distinguish n[u]int from [U]IntPtr
+    //   - in simple/normal context this has no arguments
+    //   - in a context with multiple types it has an array with 1 bool argument per `[U]IntPtr`
+    // - [Nullable] for nullable reference types
+    //   - has an array with one byte argument per reference type or generic value type
+    //   - if all those bytes are the same, it can also have a single byte as value instead
+    //   - if not present, [NullableContext] on parent method/types is checked (always single value)
+    // As a result, we need to keep track of separate indexes for each type.
+
+    public int DynamicIndex;
+
+    public int IntegerIndex;
+
+    public int NullableIndex;
+
+  }
+
   protected override string AssemblyAttributeLine(string attribute) => $"[assembly: {attribute}]";
 
   private string Attributes(MethodDefinition md) {
@@ -116,6 +151,8 @@ internal class CSharpFormatter : CodeFormatter {
     return sb.ToString();
   }
 
+  protected override string EnumValue(TypeDefinition enumType, string name) => $"{this.TypeName(enumType)}.{name}";
+
   protected override string Event(EventDefinition ed, int indent) {
     var sb = new StringBuilder();
     sb.Append(' ', indent)
@@ -226,7 +263,8 @@ internal class CSharpFormatter : CodeFormatter {
           sb.Append(", ");
         }
         sb.Append(this.CustomAttributesInline(gpc)).Append(this.TypeName(ct, gp));
-        if (gpc.IsNullable()) {
+        // FIXME: Does the method/type count as context for this? If so, how is the index chosen?
+        if (gpc.GetNullability() == Nullability.Nullable) {
           sb.Append('?');
         }
         first = false;
@@ -249,7 +287,7 @@ internal class CSharpFormatter : CodeFormatter {
     return sb.ToString();
   }
 
-  protected virtual string GenericParameters(IGenericParameterProvider provider) {
+  protected virtual string GenericParameters(IGenericParameterProvider provider, TypeNameContext tnc) {
     var sb = new StringBuilder();
     if (provider is IGenericInstance gi) {
       // FIXME: Can this be false? If so, is it an error? Or should it produce <>?
@@ -260,8 +298,7 @@ internal class CSharpFormatter : CodeFormatter {
             arguments.Add(this.GenericParameter(gp));
           }
           else {
-            // FIXME: Does this need a context?
-            arguments.Add(this.TypeName(argument));
+            arguments.Add(this.TypeName(argument, tnc));
           }
         }
         sb.Append('<').AppendJoin(", ", arguments).Append('>');
@@ -317,7 +354,6 @@ internal class CSharpFormatter : CodeFormatter {
           case "NullableAttribute":
           case "NullableContextAttribute":
           case "NullablePublicOnlyAttribute":
-            // TODO: These should be interpreted in order to add '?' after a type name where applicable
             return true;
           case "PreserveBaseOverridesAttribute":
             // Used to detect covariant return types.
@@ -420,15 +456,14 @@ internal class CSharpFormatter : CodeFormatter {
     if (md.IsReadOnly()) {
       sb.Append("readonly ");
     }
+    var returnTypeName = this.TypeName(md.ReturnType, md.MethodReturnType);
     if (md.IsRuntimeSpecialName) {
       // Runtime-Special Names
       if (md.Name is ".ctor" or ".cctor") {
         sb.Append(md.DeclaringType.NonGenericName());
       }
       else {
-        sb.Append(this.TypeName(md.ReturnType, md.MethodReturnType))
-          .Append(" /* TODO: Map RunTime-Special Method Name Correctly */ ")
-          .Append(md.Name);
+        sb.Append(returnTypeName).Append(" /* TODO: Map RunTime-Special Method Name Correctly */ ").Append(md.Name);
       }
     }
     else if (md.IsSpecialName) {
@@ -440,10 +475,10 @@ internal class CSharpFormatter : CodeFormatter {
           if (op == "CheckedExplicit") {
             sb.Append("checked ");
           }
-          sb.Append(this.TypeName(md.ReturnType, md.MethodReturnType));
+          sb.Append(returnTypeName);
         }
         else {
-          sb.Append(this.TypeName(md.ReturnType, md.MethodReturnType)).Append(" operator ");
+          sb.Append(returnTypeName).Append(" operator ");
           switch (op) {
             // Relational
             case "Equality":
@@ -608,15 +643,13 @@ internal class CSharpFormatter : CodeFormatter {
         }
       }
       else {
-        sb.Append(this.TypeName(md.ReturnType, md.MethodReturnType))
-          .Append(" /* TODO: Map Special Method Name Correctly */ ")
-          .Append(md.Name);
+        sb.Append(returnTypeName).Append(" /* TODO: Map Special Method Name Correctly */ ").Append(md.Name);
       }
     }
     else {
-      sb.Append(this.TypeName(md.ReturnType, md.MethodReturnType)).Append(' ').Append(md.Name);
+      sb.Append(returnTypeName).Append(' ').Append(md.Name);
     }
-    sb.Append(this.GenericParameters(md)).Append(this.Parameters(md));
+    sb.Append(this.GenericParameters(md, new TypeNameContext(md, md))).Append(this.Parameters(md));
     var constraints = this.GenericParameterConstraints(md, indent + 2).ToList();
     if (constraints.Count == 0) {
       sb.Append(';');
@@ -819,7 +852,8 @@ internal class CSharpFormatter : CodeFormatter {
       else { // What else can it be?
         sb.Append($"/* type with unsupported classification: {td.Attributes} */");
       }
-      sb.Append(' ').Append(this.TypeName(td, td));
+      // Note: The definition is NOT passed as context here (otherwise [NullableContext(2)] causes "public class Foo?".
+      sb.Append(' ').Append(this.TypeName(td));
       {
         var baseType = td.BaseType;
         if (baseType is not null) {
@@ -851,7 +885,7 @@ internal class CSharpFormatter : CodeFormatter {
         }
         if (baseType is not null) {
           // FIXME: Does this need a context?
-          sb.Append(this.TypeName(baseType));
+          sb.Append(this.TypeName(baseType, td));
           if (td.HasInterfaces) {
             sb.Append(", ");
           }
@@ -860,7 +894,7 @@ internal class CSharpFormatter : CodeFormatter {
           // Ensure these are emitted sorted
           var interfaces = new SortedDictionary<string, string>();
           foreach (var implementation in td.Interfaces) {
-            var type = this.TypeName(implementation.InterfaceType);
+            var type = this.TypeName(implementation.InterfaceType, implementation, typeContext: td);
             interfaces.Add(type, this.CustomAttributesInline(implementation) + type);
           }
           sb.AppendJoin(", ", interfaces.Values);
@@ -915,8 +949,56 @@ internal class CSharpFormatter : CodeFormatter {
     return sb.ToString();
   }
 
-  private string TypeName(TypeReference tr, ref int dynamicIndex, ref int integerIndex, ICustomAttributeProvider? context) {
+  protected virtual string TypeName(TypeReference tr, ICustomAttributeProvider? context = null,
+                                    MethodDefinition? methodContext = null, TypeDefinition? typeContext = null) {
+    var prefix = "";
+    // ref X can only occur on outer types; can't have an array of `ref int` or a `Func<ref int>`, so handle that here
+    if (tr is ByReferenceType brt) { // => ref T
+      // omit the "ref" for "out" parameters - it's covered by the "out"
+      if (context is not ParameterDefinition { IsOut: true }) {
+        prefix = "ref ";
+      }
+      tr = brt.ElementType;
+    }
+    ;
+    if (context is not null && methodContext is null && typeContext is null) {
+      switch (context) {
+        case EventDefinition ed:
+          typeContext = ed.DeclaringType;
+          break;
+        case FieldDefinition fd:
+          typeContext = fd.DeclaringType;
+          break;
+        case GenericParameter gp:
+          methodContext = gp.DeclaringMethod?.Resolve();
+          typeContext = gp.DeclaringType?.Resolve();
+          break;
+        case MethodDefinition md:
+          methodContext = md;
+          break;
+        case MethodReturnType mrt:
+          methodContext = mrt.Method as MethodDefinition;
+          break;
+        case ParameterDefinition pd:
+          methodContext = pd.Method as MethodDefinition;
+          break;
+        case PropertyDefinition pd:
+          typeContext = pd.DeclaringType;
+          break;
+        case TypeDefinition td:
+          typeContext = td;
+          break;
+        default:
+          prefix += $"/* FIXME: unhandled nullability context: {context.GetType().Name} */ ";
+          break;
+      }
+    }
+    return prefix + this.TypeName(tr, new TypeNameContext(context, methodContext, typeContext));
+  }
+
+  private string TypeName(TypeReference tr, TypeNameContext tnc) {
     var sb = new StringBuilder();
+    Nullability? nullability = null;
     // Note: these checks used to use things like `IsArray` and then `GetElementType()` to get at the contents. However,
     // `GetElementType()` gets the _innermost_ element type (https://github.com/jbevain/cecil/issues/841). So given we need casts
     // anyway to access the `ElementType` property, and this isn't very performance-critical code, we just use pattern matching to
@@ -924,22 +1006,30 @@ internal class CSharpFormatter : CodeFormatter {
     switch (tr) {
       case ArrayType at: { // => T[]
         // Any reference type, including an array, gets an entry in [Dynamic]
-        ++dynamicIndex;
-        sb.Append(this.TypeName(at.ElementType, ref dynamicIndex, ref integerIndex, context)).Append("[]");
+        ++tnc.DynamicIndex;
+        nullability = tnc.Main?.GetNullability(tnc.Method, tnc.Type, tnc.NullableIndex++);
+        var elementTypeName = this.TypeName(at.ElementType, tnc);
+        sb.Append(elementTypeName).Append("[]");
+        if (nullability == Nullability.Nullable) {
+          sb.Append('?');
+        }
         return sb.ToString();
       }
       case OptionalModifierType omt: {
         var type = omt.ElementType;
         var modifier = omt.ModifierType;
         // Actual meanings to be determined - put the modifier in a comment for now
-        var mainType = this.TypeName(type, ref dynamicIndex, ref integerIndex, context);
+        var mainType = this.TypeName(type, tnc);
         // FIXME: Does this need a context? Should it affect the indexes?
         var modifierType = this.TypeName(modifier);
         return $"{mainType} /* optionally modified by: {modifierType} */";
       }
-      case PointerType pt: // => T*
-        sb.Append(this.TypeName(pt.ElementType, ref dynamicIndex, ref integerIndex, context)).Append('*');
+      case PointerType pt: { // => T*
+        // Assumption: a pointer cannot be nullable so does not take up a slot in the nullability info.
+        var targetTypeName = this.TypeName(pt.ElementType, tnc);
+        sb.Append(targetTypeName).Append('*');
         return sb.ToString();
+      }
       case RequiredModifierType rmt: {
         var type = rmt.ElementType;
         var modifier = rmt.ModifierType;
@@ -950,15 +1040,25 @@ internal class CSharpFormatter : CodeFormatter {
           break;
         }
         // Actual meanings to be determined - put the modifier in a comment for now
-        var mainType = this.TypeName(type, ref dynamicIndex, ref integerIndex, context);
+        var mainType = this.TypeName(type, tnc);
         // FIXME: Does this need a context? Should it affect the indexes?
         var modifierType = this.TypeName(modifier);
         return $"{mainType} /* modified by: {modifierType} */";
       }
     }
+    // A nullability slot is used for every reference type and every generic value type.
+    if (tr.IsValueType) {
+      // Assumption: both apply
+      if (tr.IsGenericInstance || tr.HasGenericParameters) {
+        ++tnc.NullableIndex;
+      }
+    }
+    else {
+      nullability = tnc.Main?.GetNullability(tnc.Method, tnc.Type, tnc.NullableIndex++);
+    }
     // Check for System.Nullable<T> and make it T?
     if (tr.TryUnwrapNullable(out var unwrapped)) {
-      sb.Append(this.TypeName(unwrapped, ref dynamicIndex, ref integerIndex, context)).Append('?');
+      sb.Append(this.TypeName(unwrapped, tnc)).Append('?');
       return sb.ToString();
     }
     { // Check for specific framework types that have a keyword form
@@ -985,7 +1085,7 @@ internal class CSharpFormatter : CodeFormatter {
       else if (tr == ts.Int64) {
         sb.Append("long");
       }
-      else if (tr == ts.IntPtr && context.IsNativeInteger(integerIndex++)) {
+      else if (tr == ts.IntPtr && tnc.Main.IsNativeInteger(tnc.IntegerIndex++)) {
         sb.Append("nint");
       }
       else if (tr == ts.SByte) {
@@ -998,7 +1098,7 @@ internal class CSharpFormatter : CodeFormatter {
         sb.Append("string");
       }
       else if (tr == ts.Object) {
-        sb.Append(context.IsDynamic(dynamicIndex) ? "dynamic" : "object");
+        sb.Append(tnc.Main.IsDynamic(tnc.DynamicIndex) ? "dynamic" : "object");
       }
       else if (tr == ts.UInt16) {
         sb.Append("ushort");
@@ -1009,7 +1109,7 @@ internal class CSharpFormatter : CodeFormatter {
       else if (tr == ts.UInt64) {
         sb.Append("ulong");
       }
-      else if (tr == ts.UIntPtr && context.IsNativeInteger(integerIndex++)) {
+      else if (tr == ts.UIntPtr && tnc.Main.IsNativeInteger(tnc.IntegerIndex++)) {
         sb.Append("nuint");
       }
       else if (tr == ts.Void) {
@@ -1022,17 +1122,20 @@ internal class CSharpFormatter : CodeFormatter {
         isBuiltinType = false;
       }
       if (isBuiltinType) {
-        ++dynamicIndex;
+        ++tnc.DynamicIndex;
+        if (nullability == Nullability.Nullable) {
+          sb.Append('?');
+        }
         return sb.ToString();
       }
     }
     // Any type gets an entry in [Dynamic]
-    ++dynamicIndex;
+    ++tnc.DynamicIndex;
     // Check for C# tuples (i.e. System.ValueTuple)
     if (tr.IsGenericInstance && tr.IsNamed("System") && tr.Name.StartsWith("ValueTuple`")) {
       sb.Append('(');
       var element = 0;
-      var elementNames = context.GetTupleElementNames();
+      var elementNames = tnc.Main.GetTupleElementNames();
     moreGenericArguments:
       var genericArguments = ((GenericInstanceType) tr).GenericArguments;
       var item = 0;
@@ -1041,7 +1144,8 @@ internal class CSharpFormatter : CodeFormatter {
           // a 10-element tuple is an 8-element tuple where the 8th element is a 3-element tuple
           if (ga.IsGenericInstance && ga.IsNamed("System") && ga.Name.StartsWith("ValueTuple`")) {
             // skip this type
-            ++dynamicIndex;
+            ++tnc.DynamicIndex;
+            ++tnc.NullableIndex;
             // switch to this one and continue processing
             tr = ga;
             goto moreGenericArguments;
@@ -1050,7 +1154,7 @@ internal class CSharpFormatter : CodeFormatter {
         if (element > 0) {
           sb.Append(", ");
         }
-        sb.Append(this.TypeName(ga, ref dynamicIndex, ref integerIndex, context));
+        sb.Append(this.TypeName(ga, tnc));
         if (elementNames is not null) {
           if (element >= elementNames.Length) {
             sb.Append(" /* name missing */");
@@ -1094,7 +1198,7 @@ internal class CSharpFormatter : CodeFormatter {
       }
       var returnTypeAttributes = this.CustomAttributesInline(fpt.MethodReturnType);
       // This needs to be done right away to use the correct indexes, even though it appears near the end in the syntax
-      var returnTypeName = this.TypeName(returnType, ref dynamicIndex, ref integerIndex, context);
+      var returnTypeName = this.TypeName(returnType, tnc);
       switch (fpt.CallingConvention) {
         case MethodCallingConvention.Default:
           sb.Append("managed");
@@ -1125,12 +1229,16 @@ internal class CSharpFormatter : CodeFormatter {
       sb.Append('<');
       if (fpt.HasParameters) {
         foreach (var parameter in fpt.Parameters) {
-          sb.Append(this.CustomAttributesInline(parameter))
-            .Append(this.TypeName(parameter.ParameterType, ref dynamicIndex, ref integerIndex, context))
-            .Append(", ");
+          var parameterType = parameter.ParameterType;
+          var parameterTypeName = this.TypeName(parameterType, tnc);
+          sb.Append(this.CustomAttributesInline(parameter)).Append(parameterTypeName).Append(", ");
         }
       }
       sb.Append(returnTypeAttributes).Append(returnTypeName).Append('>');
+      // FIXME: Does nullability apply here?
+      if (nullability == Nullability.Nullable) {
+        sb.Append('?');
+      }
       return sb.ToString();
     }
     // Otherwise, full stringification.
@@ -1151,36 +1259,11 @@ internal class CSharpFormatter : CodeFormatter {
     else if (!string.IsNullOrEmpty(tr.Namespace) && tr.Namespace != this.CurrentNamespace) {
       sb.Append(tr.Namespace).Append('.');
     }
-    sb.Append(tr.NonGenericName()).Append(this.GenericParameters(tr));
-    return sb.ToString();
-  }
-
-  protected override string TypeName(TypeReference tr, ICustomAttributeProvider? context = null) {
-    var prefix = "";
-    // ref X can only occur on outer types; can't have an array of `ref int` or a `Func<ref int>`, so handle that here
-    if (tr is ByReferenceType brt) { // => ref T
-      // omit the "ref" for "out" parameters - it's covered by the "out"
-      if (context is not ParameterDefinition { IsOut: true }) {
-        prefix = "ref ";
-      }
-      tr = brt.ElementType;
+    sb.Append(tr.NonGenericName()).Append(this.GenericParameters(tr, tnc));
+    if (nullability == Nullability.Nullable) {
+      sb.Append('?');
     }
-    // 3 things we care about are handled by attributes on the context:
-    // - [Dynamic] to distinguish `dynamic` from `object`
-    //   - in simple/normal context this has no arguments
-    //   - in a context with multiple types (`dynamic[]`, tuple, ...) it has an array with 1 bool argument per type
-    // - [NativeInteger] to distinguish n[u]int from [U]IntPtr
-    //   - in simple/normal context this has no arguments
-    //   - in a context with multiple types it has an array with 1 bool argument per `[U]IntPtr`
-    // - [Nullable] for nullable reference types
-    //   - in normal context this has one argument
-    //   - in a context with multiple types it has an array with one byte argument per reference type
-    //   - but there is also some degree of inheritance, using [NullableContext]
-    // As a result, we need to keep track of separate indexes for each type.
-    // However, nullable reference types are a bit of a nightmare with [NullableContext] also in play, so leave those off for now.
-    var dynamicIndex = 0;
-    var integerIndex = 0;
-    return prefix + this.TypeName(tr, ref dynamicIndex, ref integerIndex, context);
+    return sb.ToString();
   }
 
   protected override string TypeOf(TypeReference tr) {
