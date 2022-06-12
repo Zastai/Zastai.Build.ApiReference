@@ -1,5 +1,6 @@
 ﻿using System.Globalization;
 using System.Linq;
+using System.Runtime.CompilerServices;
 
 namespace Zastai.Build.ApiReference;
 
@@ -452,6 +453,50 @@ internal class CSharpFormatter : CodeFormatter {
         sb.Clear();
       }
     }
+    if (md.ImplAttributes != 0) {
+      var flags = new List<string>();
+      // Mono.Cecil's MethodImplAttributes does not currently match MethodImplOptions - some values missing, some added.
+      // Similarly, we can't rely on reflecting over MethodImplOptions, because then this tool may not be aware of flags added by
+      // later framework versions. So we need to maintain a hardcoded list of "known" flags here, using nameof() for all flags
+      // that exist in all our supported target frameworks.
+      var numericFlags = (uint) md.ImplAttributes;
+      if ((numericFlags & 0x0004) != 0) {
+        flags.Add("Unmanaged");
+      }
+      if ((numericFlags & 0x0008) != 0) {
+        flags.Add("NoInlining");
+      }
+      if ((numericFlags & 0x0010) != 0) {
+        flags.Add("ForwardRef");
+      }
+      if ((numericFlags & 0x0020) != 0) {
+        flags.Add("Synchronized");
+      }
+      if ((numericFlags & 0x0040) != 0) {
+        flags.Add("NoOptimization");
+      }
+      if ((numericFlags & 0x0080) != 0) {
+        flags.Add("PreserveSig");
+      }
+      if ((numericFlags & 0x0100) != 0) {
+        flags.Add("AggressiveInlining");
+      }
+      if ((numericFlags & 0x0200) != 0) {
+        flags.Add("AggressiveOptimization");
+      }
+      if ((numericFlags & 0x1000) != 0) {
+        flags.Add("InternalCall");
+      }
+      if (flags.Count > 0) {
+        var options = typeof(MethodImplOptions).FullName + '.';
+        sb.Append(' ', indent).Append('[')
+          .Append(typeof(MethodImplAttribute).FullName).Append('(')
+          .Append(options).AppendJoin(", " + options, flags)
+          .Append(")]");
+        yield return sb.ToString();
+        sb.Clear();
+      }
+    }
     sb.Append(' ', indent).Append(this.Attributes(md));
     if (md.IsReadOnly()) {
       sb.Append("readonly ");
@@ -806,111 +851,116 @@ internal class CSharpFormatter : CodeFormatter {
     foreach (var line in this.CustomAttributes(td, indent)) {
       yield return line;
     }
+    var sb = new StringBuilder();
+    // This IL flag is written as an attribute in C# code. Do the same.
+    if (td.IsSerializable) {
+      sb.Append(' ', indent).Append('[').Append(typeof(SerializableAttribute).FullName).Append(']');
+      yield return sb.ToString();
+      sb.Clear();
+    }
     if (!td.IsPublicApi()) {
       yield return this.LineComment($"ERROR: Type {td} has unsupported access: {td.Attributes}.");
     }
+    sb.Append(' ', indent);
+    if (td.IsPublic || td.IsNestedPublic) {
+      sb.Append("public ");
+    }
+    else if (td.IsNestedFamily) {
+      sb.Append("protected ");
+    }
+    else if (td.IsNestedFamilyOrAssembly) {
+      sb.Append("protected internal ");
+    }
+    if (td.IsClass && td.IsAbstract && td.IsSealed) {
+      sb.Append("static ");
+    }
+    else if (td.IsAbstract && !td.IsInterface) {
+      sb.Append("abstract ");
+    }
+    else if (td.IsSealed && !td.IsValueType) {
+      sb.Append("sealed ");
+    }
+    if (td.IsEnum) {
+      sb.Append("enum");
+    }
+    else if (td.IsInterface) {
+      sb.Append("interface");
+    }
+    else if (td.IsValueType) {
+      if (td.IsReadOnly()) {
+        sb.Append("readonly ");
+      }
+      if (td.IsByRefLike()) {
+        sb.Append("ref ");
+      }
+      sb.Append("struct");
+    }
+    else if (td.IsClass) {
+      // TODO: Maybe detect delegates; but then what of explicitly written classes deriving from MultiCastDelegate?
+      sb.Append("class");
+    }
+    else { // What else can it be?
+      sb.Append($"/* type with unsupported classification: {td.Attributes} */");
+    }
+    // Note: The definition is NOT passed as context here (otherwise [NullableContext(2)] causes "public class Foo?".
+    sb.Append(' ').Append(this.TypeName(td));
     {
-      var sb = new StringBuilder();
-      sb.Append(' ', indent);
-      if (td.IsPublic || td.IsNestedPublic) {
-        sb.Append("public ");
-      }
-      else if (td.IsNestedFamily) {
-        sb.Append("protected ");
-      }
-      else if (td.IsNestedFamilyOrAssembly) {
-        sb.Append("protected internal ");
-      }
-      if (td.IsClass && td.IsAbstract && td.IsSealed) {
-        sb.Append("static ");
-      }
-      else if (td.IsAbstract && !td.IsInterface) {
-        sb.Append("abstract ");
-      }
-      else if (td.IsSealed && !td.IsValueType) {
-        sb.Append("sealed ");
-      }
-      if (td.IsEnum) {
-        sb.Append("enum");
-      }
-      else if (td.IsInterface) {
-        sb.Append("interface");
-      }
-      else if (td.IsValueType) {
-        if (td.IsReadOnly()) {
-          sb.Append("readonly ");
+      var baseType = td.BaseType;
+      if (baseType is not null) {
+        if (td.IsClass && baseType.IsCoreLibraryType("System", "Object")) {
+          baseType = null;
         }
-        if (td.IsByRefLike()) {
-          sb.Append("ref ");
+        else if (td.IsEnum && baseType.IsCoreLibraryType("System", "Enum")) {
+          baseType = null;
         }
-        sb.Append("struct");
-      }
-      else if (td.IsClass) {
-        // TODO: Maybe detect delegates; but then what of explicitly written classes deriving from MultiCastDelegate?
-        sb.Append("class");
-      }
-      else { // What else can it be?
-        sb.Append($"/* type with unsupported classification: {td.Attributes} */");
-      }
-      // Note: The definition is NOT passed as context here (otherwise [NullableContext(2)] causes "public class Foo?".
-      sb.Append(' ').Append(this.TypeName(td));
-      {
-        var baseType = td.BaseType;
-        if (baseType is not null) {
-          if (td.IsClass && baseType.IsCoreLibraryType("System", "Object")) {
-            baseType = null;
-          }
-          else if (td.IsEnum && baseType.IsCoreLibraryType("System", "Enum")) {
-            baseType = null;
-          }
-          else if (td.IsValueType && baseType.IsNamed("System", "ValueType")) {
-            baseType = null;
-          }
+        else if (td.IsValueType && baseType.IsNamed("System", "ValueType")) {
+          baseType = null;
         }
-        if (baseType is null && td.IsEnum) {
-          // Look for the special-named 'value__' field and use its type
-          if (td.HasFields) {
-            foreach (var fd in td.Fields) {
-              if (fd.IsSpecialName && fd.Name == "value__") {
-                // If it's Int32, leave it off
-                if (fd.FieldType != fd.Module.TypeSystem.Int32) {
-                  baseType = fd.FieldType;
-                }
+      }
+      if (baseType is null && td.IsEnum) {
+        // Look for the special-named 'value__' field and use its type
+        if (td.HasFields) {
+          foreach (var fd in td.Fields) {
+            if (fd.IsSpecialName && fd.Name == "value__") {
+              // If it's Int32, leave it off
+              if (fd.FieldType != fd.Module.TypeSystem.Int32) {
+                baseType = fd.FieldType;
               }
             }
           }
         }
-        if (baseType is not null || td.HasInterfaces) {
-          sb.Append(" : ");
-        }
-        if (baseType is not null) {
-          // FIXME: Does this need a context?
-          sb.Append(this.TypeName(baseType, td));
-          if (td.HasInterfaces) {
-            sb.Append(", ");
-          }
-        }
+      }
+      if (baseType is not null || td.HasInterfaces) {
+        sb.Append(" : ");
+      }
+      if (baseType is not null) {
+        // FIXME: Does this need a context?
+        sb.Append(this.TypeName(baseType, td));
         if (td.HasInterfaces) {
-          // Ensure these are emitted sorted
-          var interfaces = new SortedDictionary<string, string>();
-          foreach (var implementation in td.Interfaces) {
-            var type = this.TypeName(implementation.InterfaceType, implementation, typeContext: td);
-            interfaces.Add(type, this.CustomAttributesInline(implementation) + type);
-          }
-          sb.AppendJoin(", ", interfaces.Values);
+          sb.Append(", ");
         }
       }
-      var constraints = this.GenericParameterConstraints(td, indent + 2).ToList();
-      if (constraints.Count == 0) {
-        sb.Append(" {");
+      if (td.HasInterfaces) {
+        // Ensure these are emitted sorted
+        var interfaces = new SortedDictionary<string, string>();
+        foreach (var implementation in td.Interfaces) {
+          var type = this.TypeName(implementation.InterfaceType, implementation, typeContext: td);
+          interfaces.Add(type, this.CustomAttributesInline(implementation) + type);
+        }
+        sb.AppendJoin(", ", interfaces.Values);
       }
-      else {
-        constraints[constraints.Count - 1] += " {";
-      }
-      yield return sb.ToString();
-      foreach (var constraint in constraints) {
-        yield return constraint;
-      }
+    }
+    var constraints = this.GenericParameterConstraints(td, indent + 2).ToList();
+    if (constraints.Count == 0) {
+      sb.Append(" {");
+    }
+    else {
+      constraints[constraints.Count - 1] += " {";
+    }
+    yield return sb.ToString();
+    sb.Clear();
+    foreach (var constraint in constraints) {
+      yield return constraint;
     }
     foreach (var line in this.Fields(td, indent + 2)) {
       yield return line;
@@ -928,11 +978,8 @@ internal class CSharpFormatter : CodeFormatter {
       yield return line;
     }
     yield return null;
-    {
-      var sb = new StringBuilder();
-      sb.Append(' ', indent).Append('}');
-      yield return sb.ToString();
-    }
+    sb.Append(' ', indent).Append('}');
+    yield return sb.ToString();
   }
 
   protected virtual string TypeName(ExportedType et) {
