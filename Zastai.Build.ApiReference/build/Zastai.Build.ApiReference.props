@@ -10,6 +10,7 @@
     <!-- Attributes to exclude from the API reference; applied to attributes included via @(ApiReferenceIncludeAttribute).
        - If this item group is empty, all attributes are included. -->
     <ApiReferenceExcludeAttribute Include="__DynamicallyInvokableAttribute" />
+    <ApiReferenceExcludeAttribute Include="System.Diagnostics.CodeAnalysis.SuppressMessageAttribute" />
     <ApiReferenceExcludeAttribute Include="System.Reflection.AssemblyAlgorithmIdAttribute" />
     <ApiReferenceExcludeAttribute Include="System.Reflection.AssemblyCompanyAttribute" />
     <ApiReferenceExcludeAttribute Include="System.Reflection.AssemblyConfigurationAttribute" />
@@ -29,6 +30,7 @@
     <ApiReferenceExcludeAttribute Include="System.Reflection.AssemblyTitleAttribute" />
     <ApiReferenceExcludeAttribute Include="System.Reflection.AssemblyTrademarkAttribute" />
     <ApiReferenceExcludeAttribute Include="System.Reflection.AssemblyVersionAttribute" />
+    <ApiReferenceExcludeAttribute Include="System.Resources.NeutralResourcesLanguageAttribute" />
 
   </ItemGroup>
 
