@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project>
 
+  <!-- Enable package version management using this file. -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+
   <!-- Package Versions -->
   <ItemGroup>
     <PackageVersion Include="JetBrains.Annotations" Version="2022.1.0" />
