@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.32126.317
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Zastai.Build.ApiReference", "Zastai.Build.ApiReference\Zastai.Build.ApiReference.csproj", "{256359F6-1A33-4D2F-8527-F2771858A6C0}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Zastai.Build.ApiReference", "Zastai.Build.ApiReference\Zastai.Build.ApiReference.csproj", "{256359F6-1A33-4D2F-8527-F2771858A6C0}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Support Files", "Support Files", "{10ACCE43-0C21-4D4A-94FC-3C4F65760CE1}"
 	ProjectSection(SolutionItems) = preProject
@@ -12,7 +12,6 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Support Files", "Support Fi
 		.gitignore = .gitignore
 		appveyor.yml = appveyor.yml
 		build-package.ps1 = build-package.ps1
-		Directory.Build.props = Directory.Build.props
 		Directory.Packages.props = Directory.Packages.props
 	EndProjectSection
 EndProject
@@ -43,11 +42,11 @@ Global
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
-	GlobalSection(ExtensibilityGlobals) = postSolution
-		SolutionGuid = {017F1518-2086-4E18-AE13-377DE0A3DF86}
-	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{9D3966CD-4AE3-48BF-A058-4AF07F6FDCD2} = {10ACCE43-0C21-4D4A-94FC-3C4F65760CE1}
 		{2DE7A8DA-6731-446B-8E67-1712EAE1A673} = {9D3966CD-4AE3-48BF-A058-4AF07F6FDCD2}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {017F1518-2086-4E18-AE13-377DE0A3DF86}
 	EndGlobalSection
 EndGlobal
