@@ -374,11 +374,40 @@ internal class CSharpFormatter : CodeFormatter {
 
   protected override string Literal(byte value) => "(byte) " + value.ToString(CultureInfo.InvariantCulture);
 
-  protected override string Literal(decimal value) => value.ToString(CultureInfo.InvariantCulture) + 'M';
+  protected override string Literal(decimal value) => value switch {
+    decimal.MaxValue => "decimal.MaxValue",
+    decimal.MinValue => "decimal.MinValue",
+    _ => value.ToString(CultureInfo.InvariantCulture) + 'M'
+  };
 
-  protected override string Literal(double value) => value.ToString(CultureInfo.InvariantCulture) + 'D';
+  protected override string Literal(double value) => value switch {
+    Math.E => "Math.E",
+    Math.PI => "Math.PI",
+    double.Epsilon => "double.Epsilon",
+    double.MaxValue => "double.MaxValue",
+    double.MinValue => "double.MinValue",
+    double.NaN => "double.NaN",
+    double.NegativeInfinity => "double.NegativeInfinity",
+    double.PositiveInfinity => "double.PositiveInfinity",
+    _ => value.ToString("G17", CultureInfo.InvariantCulture) + 'D'
+  };
 
-  protected override string Literal(float value) => value.ToString(CultureInfo.InvariantCulture) + 'F';
+  protected override string Literal(float value) => value switch {
+#if NETFRAMEWORK
+    2.71828183F => "MathF.E",
+    3.14159265F => "MathF.PI",
+#else
+    MathF.E => "MathF.E",
+    MathF.PI => "MathF.PI",
+#endif
+    float.Epsilon => "float.Epsilon",
+    float.MaxValue => "float.MaxValue",
+    float.MinValue => "float.MinValue",
+    float.NaN => "float.NaN",
+    float.NegativeInfinity => "float.NegativeInfinity",
+    float.PositiveInfinity => "float.PositiveInfinity",
+    _ => value.ToString("G9", CultureInfo.InvariantCulture) + 'F'
+  };
 
   protected override string Literal(int value) => value.ToString(CultureInfo.InvariantCulture);
 
