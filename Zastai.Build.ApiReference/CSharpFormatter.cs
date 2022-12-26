@@ -1032,11 +1032,10 @@ internal class CSharpFormatter : CodeFormatter {
     if (tr is ByReferenceType brt) { // => ref T
       // omit the "ref" for "out" parameters - it's covered by the "out"
       if (context is not ParameterDefinition { IsOut: true }) {
-        prefix = "ref ";
+        prefix = context.IsReadOnly() ? "ref readonly " : "ref ";
       }
       tr = brt.ElementType;
     }
-    ;
     if (context is not null && methodContext is null && typeContext is null) {
       switch (context) {
         case EventDefinition ed:
