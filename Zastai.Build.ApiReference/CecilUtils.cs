@@ -34,16 +34,9 @@ internal static class CecilUtils {
     return null;
   }
 
-  public static bool HasCovariantReturn(this MethodDefinition md) {
-    if (md.HasCustomAttributes) {
-      foreach (var ca in md.CustomAttributes) {
-        if (ca.AttributeType.IsNamed("System.Runtime.CompilerServices", "PreserveBaseOverridesAttribute")) {
-          return true;
-        }
-      }
-    }
-    return false;
-  }
+  public static bool HasCovariantReturn(this MethodDefinition md)
+    => md.HasCustomAttributes &&
+       md.CustomAttributes.Any(ca => ca.AttributeType.IsNamed("System.Runtime.CompilerServices", "PreserveBaseOverridesAttribute"));
 
   public static Nullability? GetNullability(this ICustomAttributeProvider cap, MethodDefinition? context, int idx = 0)
     => cap.GetNullability(idx) ?? context.GetNullabilityContext();
@@ -133,29 +126,15 @@ internal static class CecilUtils {
     return method.IsPublicApi() ? method : null;
   }
 
-  public static bool IsByRefLike(this TypeDefinition td) {
-    if (td.HasCustomAttributes) {
-      foreach (var ca in td.CustomAttributes) {
-        if (ca.AttributeType.IsNamed("System.Runtime.CompilerServices", "IsByRefLikeAttribute")) {
-          return true;
-        }
-      }
-    }
-    return false;
-  }
+  public static bool IsByRefLike(this TypeDefinition td)
+    => td.HasCustomAttributes &&
+       td.CustomAttributes.Any(ca => ca.AttributeType.IsNamed("System.Runtime.CompilerServices", "IsByRefLikeAttribute"));
 
-  public static bool IsCompilerGenerated(this TypeReference tr) {
-    var td = tr.Resolve();
-    if (td is not null && td.HasCustomAttributes) {
-      foreach (var ca in td.CustomAttributes) {
-        if (ca.AttributeType.IsNamed("System.Runtime.CompilerServices", "CompilerGeneratedAttribute")) {
-          return true;
-        }
-      }
-      return false;
-    }
-    return false;
-  }
+  private static bool IsCompilerGenerated(this TypeDefinition? td)
+    => td is not null && td.HasCustomAttributes &&
+       td.CustomAttributes.Any(ca => ca.AttributeType.IsNamed("System.Runtime.CompilerServices", "CompilerGeneratedAttribute"));
+
+  public static bool IsCompilerGenerated(this TypeReference tr) => tr.Resolve().IsCompilerGenerated();
 
   public static bool IsCoreLibraryType(this TypeReference tr) => tr.Scope == tr.Module.TypeSystem.CoreLibrary;
 
@@ -235,27 +214,13 @@ internal static class CecilUtils {
   public static bool IsPublicApi(this TypeDefinition td)
     => td.IsPublic || td.IsNestedPublic || td.IsNestedFamily || td.IsNestedFamilyOrAssembly;
 
-  public static bool IsReadOnly(this ICustomAttributeProvider provider) {
-    if (provider.HasCustomAttributes) {
-      foreach (var ca in provider.CustomAttributes) {
-        if (ca.AttributeType.IsNamed("System.Runtime.CompilerServices", "IsReadOnlyAttribute")) {
-          return true;
-        }
-      }
-    }
-    return false;
-  }
+  public static bool IsReadOnly(this ICustomAttributeProvider? provider)
+    => provider is not null && provider.HasCustomAttributes &&
+       provider.CustomAttributes.Any(ca => ca.AttributeType.IsNamed("System.Runtime.CompilerServices", "IsReadOnlyAttribute"));
 
-  public static bool IsUnmanaged(this GenericParameter gp) {
-    if (gp.HasCustomAttributes) {
-      foreach (var ca in gp.CustomAttributes) {
-        if (ca.AttributeType.IsNamed("System.Runtime.CompilerServices", "IsUnmanagedAttribute")) {
-          return true;
-        }
-      }
-    }
-    return false;
-  }
+  public static bool IsUnmanaged(this GenericParameter? gp)
+    => gp is not null && gp.HasCustomAttributes &&
+       gp.CustomAttributes.Any(ca => ca.AttributeType.IsNamed("System.Runtime.CompilerServices", "IsUnmanagedAttribute"));
 
   public static string NonGenericName(this TypeReference tr) {
     var name = tr.Name;
@@ -271,7 +236,7 @@ internal static class CecilUtils {
 
   public static bool TryUnwrapNullable(this TypeReference tr, [NotNullWhen(true)] out TypeReference? unwrapped) {
     if (tr.Scope == tr.Module.TypeSystem.CoreLibrary) {
-      if (tr.IsGenericInstance && tr.Namespace == "System" && tr.Name == "Nullable`1") {
+      if (tr is { IsGenericInstance: true, Namespace: "System", Name: "Nullable`1" }) {
         var gi = (IGenericInstance) tr;
         Trace.Assert(gi.HasGenericArguments && gi.GenericArguments.Count == 1,
                      "Nullable type instance does not have exactly one generic argument.");
