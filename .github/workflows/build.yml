@@ -16,7 +16,8 @@ jobs:
         configuration: ['Debug', 'Release']
 
     steps:
-    - uses: actions/checkout@v3
+    - name: Check out the project
+      uses: actions/checkout@v3
     - name: Set up .NET ${{env.dotnet-version}}
       uses: actions/setup-dotnet@v3
       id: setup
@@ -26,7 +27,7 @@ jobs:
         NUGET_AUTH_TOKEN: ${{secrets.GITHUB_TOKEN}}
     - name: Create global.json to force use of .NET SDK ${{steps.setup.outputs.dotnet-version}}
       run: echo '{"sdk":{"version":"${{steps.setup.outputs.dotnet-version}}"}}' > ./global.json
-    - name: Run build script (${{matrix.configuration}} configuration)
+    - name: Run build script (${{matrix.configuration}})
       run: pwsh ./build-package.ps1 -WithBinLog -Configuration ${{matrix.configuration}}
     - name: "Artifact: MSBuild Logs"
       uses: actions/upload-artifact@v3
@@ -34,14 +35,11 @@ jobs:
       with:
         name: MSBuild Logs (${{matrix.configuration}})
         path: msbuild.*.binlog
-    - name: "Artifact: NuGet packages"
+    - name: "Artifact: NuGet Packages"
       uses: actions/upload-artifact@v3
       with:
         name: NuGet Packages (${{matrix.configuration}})
         path: "**/bin/${{matrix.configuration}}/*.nupkg"
-    - name: Show current ref
-      if: matrix.configuration == 'Release' && startsWith(github.ref, 'refs/pull/')
-      run: 'echo github.ref: ${{github.ref}}'
-    - name: Publish NuGet Package
+    - name: Publish (NuGet - GitHub Packages)
       if: matrix.configuration == 'Release' && startsWith(github.ref, 'refs/tags/v')
       run: "dotnet nuget push */bin/${{matrix.configuration}}/*.nupkg"
