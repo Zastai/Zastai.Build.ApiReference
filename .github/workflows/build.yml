@@ -9,7 +9,7 @@ on:
 jobs:
   build:
 
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         dotnet-version: ['6.0.x', '7.0.x']
@@ -21,7 +21,7 @@ jobs:
       with:
         dotnet-version: ${{ matrix.dotnet-version }}
     - name: Run Build Script
-      run: .\build-package.ps1 -WithBinLog -Configuration Release
+      run: pwsh ./build-package.ps1 -WithBinLog -Configuration Release
     - name: Store Log for Failed Build
       uses: actions/upload-artifact@v3
       if: failure()
