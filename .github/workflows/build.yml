@@ -16,25 +16,30 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-    - name: Set Up .NET ${{ matrix.dotnet-version }}
+    - name: Set Up .NET ${{matrix.dotnet-version}}
       uses: actions/setup-dotnet@v3
-      id: dotnet-setup
+      id: setup
       with:
-        dotnet-version: ${{ matrix.dotnet-version }}
+        dotnet-version: ${{matrix.dotnet-version}}
+      env:
+        NUGET_AUTH_TOKEN: ${{secrets.GITHUB_TOKEN}}
     - name: Create global.json
-      run: echo '{ "sdk": { "version": "${{ steps.dotnet-setup.outputs.dotnet-version}}" } }' > ./global.json
+      run: echo '{"sdk":{"version": "${{ steps.setup.outputs.dotnet-version }}"}}' > ./global.json
     - name: Run Build Script
       run: pwsh ./build-package.ps1 -WithBinLog -Configuration Release
     - name: Store Log for Failed Build
       uses: actions/upload-artifact@v3
       if: failure()
       with:
-        name: MSBuild Log File (.NET ${{ matrix.dotnet-version }})
+        name: MSBuild Log File (.NET SDK ${{steps.setup.outputs.dotnet-version}})
         path: msbuild.binlog
     - name: Store NuGet Package
       uses: actions/upload-artifact@v3
-      # FIXME: Maybe only do this on a tag?
       with:
-        name: NuGet Package (.NET ${{ matrix.dotnet-version }})
+        name: NuGet Package (.NET SDK ${{steps.setup.outputs.dotnet-version}})
         path: ./**/bin/Release/*.nupkg
-# TODO: If it's a tag build, publish the NuGet package to GitHub Packages
+    - name: Show current ref
+      run: echo github.ref: ${{github.ref}}
+    - name: Publish NuGet Package
+      if: startsWith(github.ref, 'refs/tags/v')
+      run: dotnet nuget push */bin/Release/*.nupkg
