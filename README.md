@@ -111,8 +111,8 @@ These are available [on GitHub][GHReleases].
 
 Package icon created by [DinosoftLabs - FlatIcon][PackageIcon].
 
-[CI-S]: https://img.shields.io/appveyor/build/zastai/zastai-build-apireference
-[CI-L]: https://ci.appveyor.com/project/Zastai/zastai-build-apireference
+[CI-S]: https://github.com/Zastai/Zastai.Build.APIReference/actions/workflows/build.yml/badge.svg
+[CI-L]: https://github.com/Zastai/Zastai.Build.APIReference/actions/workflows/build.yml
 
 [NuGet-S]: https://img.shields.io/nuget/v/Zastai.Build.ApiReference
 [NuGet-L]: https://www.nuget.org/packages/Zastai.Build.ApiReference
