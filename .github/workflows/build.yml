@@ -16,10 +16,13 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-    - name: Setup .NET ${{ matrix.dotnet-version }}
+    - name: Set Up .NET ${{ matrix.dotnet-version }}
       uses: actions/setup-dotnet@v3
+      id: dotnet-setup
       with:
         dotnet-version: ${{ matrix.dotnet-version }}
+    - name: Create global.json
+        run: echo '{ "sdk": { "version": "${{ steps.dotnet-setup.outputs.dotnet-version}}" } }' > ./global.json
     - name: Run Build Script
       run: pwsh ./build-package.ps1 -WithBinLog -Configuration Release
     - name: Store Log for Failed Build
