@@ -8,13 +8,12 @@ on:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
+    env:
+      dotnet-version: 7.0.x
     strategy:
       matrix:
         configuration: ['Debug', 'Release']
-    env:
-      dotnet-version: 6.0.x
 
     steps:
     - uses: actions/checkout@v3
@@ -27,18 +26,18 @@ jobs:
         NUGET_AUTH_TOKEN: ${{secrets.GITHUB_TOKEN}}
     - name: Create global.json to force use of .NET SDK ${{steps.setup.outputs.dotnet-version}}
       run: echo '{"sdk":{"version":"${{steps.setup.outputs.dotnet-version}}"}}' > ./global.json
-    - name: "Run Build Script (Configuration: ${{matrix.configuration}})"
+    - name: Run build script (${{matrix.configuration}} configuration)
       run: pwsh ./build-package.ps1 -WithBinLog -Configuration ${{matrix.configuration}}
-    - name: Store Logs for Failed Build
+    - name: "Artifact: MSBuild Logs"
       uses: actions/upload-artifact@v3
       if: failure()
       with:
-        name: MSBuild Log Files (${{matrix.configuration}})
+        name: MSBuild Logs (${{matrix.configuration}})
         path: msbuild.*.binlog
-    - name: Store NuGet Package
+    - name: "Artifact: NuGet packages"
       uses: actions/upload-artifact@v3
       with:
-        name: NuGet Package (${{matrix.configuration}})
+        name: NuGet Packages (${{matrix.configuration}})
         path: "**/bin/${{matrix.configuration}}/*.nupkg"
     - name: Show current ref
       if: matrix.configuration == 'Release' && startsWith(github.ref, 'refs/pull/')
