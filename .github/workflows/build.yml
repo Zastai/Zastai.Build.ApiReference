@@ -33,5 +33,5 @@ jobs:
       # FIXME: Maybe only do this on a tag?
       with:
         name: NuGet Package (.NET ${{ matrix.dotnet-version }})
-        path: **/bin/Release/*.nupkg
+        path: ./**/bin/Release/*.nupkg
 # TODO: If it's a tag build, publish the NuGet package to GitHub Packages
