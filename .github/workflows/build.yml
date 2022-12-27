@@ -12,33 +12,36 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        dotnet-version: ['6.0.x', '7.0.x']
+        configuration: ['Debug', 'Release']
+    env:
+      dotnet-version: 7.0.x
 
     steps:
     - uses: actions/checkout@v3
-    - name: Set Up .NET ${{matrix.dotnet-version}}
+    - name: Set up .NET ${{env.dotnet-version}}
       uses: actions/setup-dotnet@v3
       id: setup
       with:
-        dotnet-version: ${{matrix.dotnet-version}}
+        dotnet-version: ${{env.dotnet-version}}
       env:
         NUGET_AUTH_TOKEN: ${{secrets.GITHUB_TOKEN}}
-    - name: Create global.json
+    - name: Create global.json to force use of .NET SDK ${{steps.setup.outputs.dotnet-version}})
       run: echo '{"sdk":{"version":"${{steps.setup.outputs.dotnet-version}}"}}' > ./global.json
-    - name: Run Build Script
-      run: pwsh ./build-package.ps1 -WithBinLog -Configuration Release
-    - name: Store Log for Failed Build
+    - name: Run Build Script (Configuration: ${{matrix.configuration}})
+      run: pwsh ./build-package.ps1 -WithBinLog -Configuration ${{matrix.configuration}}
+    - name: Store Logs for Failed Build
       uses: actions/upload-artifact@v3
       if: failure()
       with:
-        name: MSBuild Log File (.NET SDK ${{steps.setup.outputs.dotnet-version}})
-        path: msbuild.binlog
+        name: MSBuild Log Files
+        path: msbuild.*.binlog
     - name: Store NuGet Package
       uses: actions/upload-artifact@v3
       with:
-        name: NuGet Package (.NET SDK ${{steps.setup.outputs.dotnet-version}})
+        name: NuGet Package
         path: ./**/bin/Release/*.nupkg
     - name: Show current ref
+      if: matrix.configuration == 'Release'
       run: 'echo github.ref: ${{github.ref}}'
     - name: Publish NuGet Package
       if: startsWith(github.ref, 'refs/tags/v')
