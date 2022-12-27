@@ -28,7 +28,11 @@ function Complete-BuildStep {
 }
 
 Write-Host 'Cleaning up existing build output...'
-Remove-Item -Recurse -Force */bin/$Configuration, */obj/$Configuration
+Remove-Item -Force -Recurse */bin/$Configuration, */obj/$Configuration
+Remove-Item -Force msbuild.*.binlog
+if (Test-Path msbuild.binlog) {
+  Remove-Item -Force msbuild.binlog
+}
 Write-Host ''
 
 Write-Host "Running package restore..."
