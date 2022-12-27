@@ -27,7 +27,7 @@ jobs:
         NUGET_AUTH_TOKEN: ${{secrets.GITHUB_TOKEN}}
     - name: Create global.json to force use of .NET SDK ${{steps.setup.outputs.dotnet-version}})
       run: echo '{"sdk":{"version":"${{steps.setup.outputs.dotnet-version}}"}}' > ./global.json
-    - name: Run Build Script (Configuration: ${{matrix.configuration}})
+    - name: "Run Build Script (Configuration: ${{matrix.configuration}})"
       run: pwsh ./build-package.ps1 -WithBinLog -Configuration ${{matrix.configuration}}
     - name: Store Logs for Failed Build
       uses: actions/upload-artifact@v3
