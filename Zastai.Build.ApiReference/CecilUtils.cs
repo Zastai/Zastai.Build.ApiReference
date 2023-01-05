@@ -222,6 +222,8 @@ internal static class CecilUtils {
     => gp is not null && gp.HasCustomAttributes &&
        gp.CustomAttributes.Any(ca => ca.AttributeType.IsNamed("System.Runtime.CompilerServices", "IsUnmanagedAttribute"));
 
+  public static bool IsVoid(this TypeReference tr) => tr == tr.Module.TypeSystem.Void;
+
   public static string NonGenericName(this TypeReference tr) {
     var name = tr.Name;
     var backTick = name.IndexOf('`');

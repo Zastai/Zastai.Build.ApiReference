@@ -1122,13 +1122,14 @@ internal class CSharpFormatter : CodeFormatter {
       }
     }
     // A nullability slot is used for every reference type and every generic value type.
+    // Special Case: System.Void is not considered to be a value type, but also does not participate in nullability.
     if (tr.IsValueType) {
       // Assumption: both apply
       if (tr.IsGenericInstance || tr.HasGenericParameters) {
         ++tnc.NullableIndex;
       }
     }
-    else {
+    else if (!tr.IsVoid()) {
       nullability = tnc.Main?.GetNullability(tnc.Method, tnc.Type, tnc.NullableIndex++);
     }
     // Check for System.Nullable<T> and make it T?
