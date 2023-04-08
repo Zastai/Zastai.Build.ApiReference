@@ -91,7 +91,7 @@ Defaults to `false`.
 The choice of which attributes to consider part of the public API is
 based on two item groups:
 
-| Property                     | Description                                                                                                                     |
+| Item Group                   | Description                                                                                                                     |
 |------------------------------|---------------------------------------------------------------------------------------------------------------------------------|
 | ApiReferenceIncludeAttribute | Attributes to include. If not specified, all attributes are included, unless excluded via `@(ApiReferenceExcludeAttribute)`.    |
 | ApiReferenceExcludeAttribute | Attributes to exclude. Applies to attributes included (whether explicitly or implicitly) via `@(ApiReferenceIncludeAttribute)`. |
