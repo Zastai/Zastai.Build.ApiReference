@@ -133,8 +133,13 @@ public static class Program {
   }
 
   private static int Usage(int rc = 1) {
-    var programName = Assembly.GetExecutingAssembly().GetName().Name;
-    Console.Out.WriteLine("Usage: {0} ASSEMBLY OUTPUT-FILE [-f FORMAT] [-r DEPENDENCY-DIR]...", programName);
+    Console.Out.WriteLine("Usage: {0} ASSEMBLY OUTPUT-FILE [OPTIONS]", Assembly.GetExecutingAssembly().GetName().Name);
+    Console.Out.WriteLine();
+    Console.Out.WriteLine("Options:");
+    Console.Out.WriteLine("  -f FORMAT                 Specify the output format (csharp or markdown)");
+    Console.Out.WriteLine("  -r DEPENDENCY-DIR         Add a location to search for required references");
+    Console.Out.WriteLine("  -ea ATTRIBUTE-TYPE-NAME   Exclude a particular attribute");
+    Console.Out.WriteLine("  -ia ATTRIBUTE-TYPE-NAME   Include a particular attribute");
     return rc;
   }
 
