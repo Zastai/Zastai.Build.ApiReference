@@ -188,8 +188,14 @@ internal class CSharpFormatter : CodeFormatter {
     else if (fd.IsFamilyOrAssembly) {
       sb.Append("protected internal ");
     }
+    var isDecimalConstant = false;
+    decimal? decimalConstantValue = null;
     if (fd.IsLiteral) {
       sb.Append("const ");
+    }
+    else if (fd.IsDecimalConstant(out decimalConstantValue)) {
+      sb.Append("const ");
+      isDecimalConstant = true;
     }
     else {
       if (fd.IsStatic) {
@@ -200,8 +206,17 @@ internal class CSharpFormatter : CodeFormatter {
       }
     }
     sb.Append(this.TypeName(fd.FieldType, fd)).Append(' ').Append(fd.Name);
-    if (fd.IsLiteral) {
-      sb.Append(" = ").Append(fd.HasConstant ? this.Value(null, fd.Constant) : " /* constant value missing */");
+    if (fd.IsLiteral || isDecimalConstant) {
+      sb.Append(" = ");
+      if (fd.IsLiteral) {
+        sb.Append(fd.HasConstant ? this.Value(null, fd.Constant) : "/* constant value missing */");
+      }
+      else if (decimalConstantValue.HasValue) {
+        sb.Append(this.Literal(decimalConstantValue.Value));
+      }
+      else {
+        sb.Append("/* could not decode decimal constant */");
+      }
     }
     sb.Append(';');
     return sb.ToString();
@@ -332,12 +347,15 @@ internal class CSharpFormatter : CodeFormatter {
           case "ReferenceAssemblyAttribute":
             // Guaranteed not to be relevant to the API.
             return true;
-          case "ExtensionAttribute":
-            // Not relevant at assembly/type level (just flags presence of extension methods).
-            // Mapped to "this" keyword on parameters.
+          case "DecimalConstantAttribute":
+            // Mapped to "const" keyword + initial value.
             return true;
           case "DynamicAttribute":
             // Mapped to "dynamic" keyword.
+            return true;
+          case "ExtensionAttribute":
+            // Not relevant at assembly/type level (just flags presence of extension methods).
+            // Mapped to "this" keyword on parameters.
             return true;
           case "IsByRefLikeAttribute":
             // Mapped to "ref" keyword.

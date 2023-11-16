@@ -9,35 +9,6 @@ namespace Zastai.Build.ApiReference;
 [PublicAPI]
 internal static class CecilUtils {
 
-  public static string?[]? GetTupleElementNames(this ICustomAttributeProvider? cap) {
-    if (cap is not null && cap.HasCustomAttributes) {
-      foreach (var ca in cap.CustomAttributes) {
-        if (ca.AttributeType.IsNamed("System.Runtime.CompilerServices", "TupleElementNamesAttribute")) {
-          if (ca.HasConstructorArguments && ca.ConstructorArguments.Count == 1) {
-            var arg = ca.ConstructorArguments[0];
-            if (arg.Value is CustomAttributeArgument[] values) {
-              var names = new string?[values.Length];
-              var idx = 0;
-              foreach (var value in values) {
-                if (value.Type == value.Type.Module.TypeSystem.String && value.Value is string name) {
-                  names[idx] = name;
-                }
-                ++idx;
-              }
-              return names;
-            }
-          }
-          return null;
-        }
-      }
-    }
-    return null;
-  }
-
-  public static bool HasCovariantReturn(this MethodDefinition md)
-    => md.HasCustomAttributes &&
-       md.CustomAttributes.Any(ca => ca.AttributeType.IsNamed("System.Runtime.CompilerServices", "PreserveBaseOverridesAttribute"));
-
   public static Nullability? GetNullability(this ICustomAttributeProvider cap, MethodDefinition? context, int idx = 0)
     => cap.GetNullability(idx) ?? context.GetNullabilityContext();
 
@@ -119,6 +90,35 @@ internal static class CecilUtils {
     return null;
   }
 
+  public static string?[]? GetTupleElementNames(this ICustomAttributeProvider? cap) {
+    if (cap is not null && cap.HasCustomAttributes) {
+      foreach (var ca in cap.CustomAttributes) {
+        if (ca.AttributeType.IsNamed("System.Runtime.CompilerServices", "TupleElementNamesAttribute")) {
+          if (ca.HasConstructorArguments && ca.ConstructorArguments.Count == 1) {
+            var arg = ca.ConstructorArguments[0];
+            if (arg.Value is CustomAttributeArgument[] values) {
+              var names = new string?[values.Length];
+              var idx = 0;
+              foreach (var value in values) {
+                if (value.Type == value.Type.Module.TypeSystem.String && value.Value is string name) {
+                  names[idx] = name;
+                }
+                ++idx;
+              }
+              return names;
+            }
+          }
+          return null;
+        }
+      }
+    }
+    return null;
+  }
+
+  public static bool HasCovariantReturn(this MethodDefinition md)
+    => md.HasCustomAttributes &&
+       md.CustomAttributes.Any(ca => ca.AttributeType.IsNamed("System.Runtime.CompilerServices", "PreserveBaseOverridesAttribute"));
+
   public static MethodDefinition? IfPublicApi(this MethodDefinition? method) {
     if (method is null) {
       return null;
@@ -142,6 +142,55 @@ internal static class CecilUtils {
 
   public static bool IsCoreLibraryType(this TypeReference tr, string? ns, string name)
     => tr.IsCoreLibraryType() && tr.IsNamed(ns, name);
+
+  public static bool IsDecimalConstant(this FieldDefinition fd, out decimal? value) {
+    if (fd is { IsStatic: true, IsInitOnly: true, HasCustomAttributes: true }) {
+      foreach (var ca in fd.CustomAttributes) {
+        if (ca.AttributeType.FullName == "System.Runtime.CompilerServices.DecimalConstantAttribute") {
+          var valid = false;
+          byte scale = 0;
+          var negative = false;
+          var lo = 0;
+          var mid = 0;
+          var hi = 0;
+          if (ca.HasConstructorArguments && ca.ConstructorArguments.Count == 5) {
+            var ts = fd.Module.TypeSystem;
+            // 2 forms: one has int for lo/mid/hi, the other has uint
+            if (ca.ConstructorArguments[0].Type == ts.Byte) {
+              scale = (byte) ca.ConstructorArguments[0].Value;
+              if (ca.ConstructorArguments[1].Type == ts.Byte) {
+                negative = 0 != (byte) ca.ConstructorArguments[1].Value;
+                if (ca.ConstructorArguments[2].Type == ts.Int32) {
+                  hi = (int) ca.ConstructorArguments[2].Value;
+                  if (ca.ConstructorArguments[3].Type == ts.Int32) {
+                    mid = (int) ca.ConstructorArguments[3].Value;
+                    if (ca.ConstructorArguments[4].Type == ts.Int32) {
+                      lo = (int) ca.ConstructorArguments[4].Value;
+                      valid = true;
+                    }
+                  }
+                }
+                else if (ca.ConstructorArguments[2].Type == ts.UInt32) {
+                  hi = (int) (uint) ca.ConstructorArguments[2].Value;
+                  if (ca.ConstructorArguments[3].Type == ts.UInt32) {
+                    mid = (int) (uint) ca.ConstructorArguments[3].Value;
+                    if (ca.ConstructorArguments[4].Type == ts.UInt32) {
+                      lo = (int) (uint) ca.ConstructorArguments[4].Value;
+                      valid = true;
+                    }
+                  }
+                }
+              }
+            }
+          }
+          value = valid ? new decimal(lo, mid, hi, negative, scale) : null;
+          return true;
+        }
+      }
+    }
+    value = null;
+    return false;
+  }
 
   public static bool IsDynamic(this ICustomAttributeProvider? cap, int idx) {
     if (cap is not null && cap.HasCustomAttributes) {
