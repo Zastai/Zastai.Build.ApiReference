@@ -50,7 +50,7 @@
   <!-- Derived Properties -->
   <PropertyGroup>
 
-    <_ApiReferenceGenerator Condition=" '$(MSBuildRuntimeType)' == 'Core' ">$(MSBuildThisFileDirectory)..\tools\netcoreapp3.1\Zastai.Build.ApiReference.dll</_ApiReferenceGenerator>
+    <_ApiReferenceGenerator Condition=" '$(MSBuildRuntimeType)' == 'Core' ">$(MSBuildThisFileDirectory)..\tools\net6.0\Zastai.Build.ApiReference.dll</_ApiReferenceGenerator>
     <_ApiReferenceGenerator Condition=" '$(MSBuildRuntimeType)' != 'Core' ">$(MSBuildThisFileDirectory)..\tools\net472\Zastai.Build.ApiReference.exe</_ApiReferenceGenerator>
 
     <_ApiReferenceGeneratorCommandLine Condition=" '$(MSBuildRuntimeType)' == 'Core'                             ">$(NetCoreRunner) "$(_ApiReferenceGenerator)"</_ApiReferenceGeneratorCommandLine>
