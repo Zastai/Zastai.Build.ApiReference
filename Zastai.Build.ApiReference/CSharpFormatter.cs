@@ -48,30 +48,33 @@ internal class CSharpFormatter : CodeFormatter {
     if (md.IsPublic) {
       sb.Append("public ");
     }
-    if (md.IsFamily) {
+     else if (md.IsFamily) {
       sb.Append("protected ");
     }
-    if (md.IsFamilyOrAssembly) {
+    else if (md.IsFamilyOrAssembly) {
       sb.Append("protected internal ");
     }
+    else {
+      sb.Append("/* unexpected accessibility */ ");
+    }
+    // FIXME: IsNewSlot is also set for the very first declaration in the hierarchy, so we can't usefully emit the 'new' specifier.
     if (md.IsStatic) {
       sb.Append("static ");
     }
     if (md.IsAbstract) {
       sb.Append("abstract ");
     }
-    else {
-      if (md.IsFinal) {
-        sb.Append("sealed ");
-      }
+    else if (md.IsFinal) {
+      sb.Append("sealed ");
       if (md.IsVirtual) {
-        if (!md.IsNewSlot || md.HasCovariantReturn()) {
-          sb.Append("override ");
-        }
-        else if (!md.IsFinal) {
-          sb.Append("virtual ");
-        }
+        sb.Append("override ");
       }
+    }
+    else if (md.IsVirtual) {
+      // For some reason, static virtual methods in interfaces have IsReuseSlot set; that's currently the only situation where
+      // static+virtual is valid, so we can just look at IsStatic to ignore the IsReuseSlot.
+      var isOverride = (md.IsReuseSlot && !md.IsStatic) || (md.IsNewSlot && md.HasCovariantReturn());
+      sb.Append(isOverride ? "override " : "virtual ");
     }
     return sb.ToString();
   }
