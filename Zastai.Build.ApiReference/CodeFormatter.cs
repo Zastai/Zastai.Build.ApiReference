@@ -2,7 +2,7 @@
 
 namespace Zastai.Build.ApiReference;
 
-internal abstract class CodeFormatter {
+internal abstract partial class CodeFormatter {
 
   private readonly ISet<string> _attributesToExclude = new HashSet<string>();
 
@@ -285,35 +285,28 @@ internal abstract class CodeFormatter {
     if (!td.HasMethods) {
       yield break;
     }
-    var methods = new SortedDictionary<string, SortedDictionary<string, MethodDefinition>>();
+    var methods = new SortedSet<MethodDefinition>(this);
     foreach (var method in td.Methods) {
       if (!method.IsPublicApi() || method.IsAddOn || method.IsGetter || method.IsRemoveOn || method.IsSetter) {
         continue;
       }
-      if (!methods.TryGetValue(method.Name, out var overloads)) {
-        methods.Add(method.Name, overloads = new SortedDictionary<string, MethodDefinition>());
+      if (methods.Add(method)) {
+        continue;
       }
-      var signature = method.ToString();
-      if (method.HasGenericParameters) {
-        // These are not included in the ToString(), and they are needed for uniqueness
-        foreach (var gp in method.GenericParameters) {
-          signature += $"<{gp}>";
-        }
+      if (methods.TryGetValue(method, out var previousMethod)) {
+        Trace.Fail(method.ToString(), $"Multiply defined method; previous was {previousMethod}.");
       }
-      if (overloads.TryGetValue(signature, out var previousMethod)) {
-        Trace.Fail(signature, $"Multiply defined method; previous was {previousMethod}.");
+      else {
+        Trace.Fail(method.ToString(), "Multiply defined method; could not determine original definition.");
       }
-      overloads.Add(signature, method);
     }
     if (methods.Count == 0) {
       yield break;
     }
-    foreach (var overloads in methods.Values) {
-      foreach (var md in overloads.Values) {
-        yield return null;
-        foreach (var line in this.Method(md, indent)) {
-          yield return line;
-        }
+    foreach (var method in methods) {
+      yield return null;
+      foreach (var line in this.Method(method, indent)) {
+        yield return line;
       }
     }
   }
@@ -511,6 +504,9 @@ internal abstract class CodeFormatter {
   protected virtual IEnumerable<string?> TypeHeader(TypeDefinition td) {
     yield return null;
   }
+
+  protected abstract string TypeName(TypeReference tr, ICustomAttributeProvider? context = null,
+                                     MethodDefinition? methodContext = null, TypeDefinition? typeContext = null);
 
   protected abstract string TypeOf(TypeReference tr);
 

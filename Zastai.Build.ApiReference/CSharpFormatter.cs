@@ -1043,8 +1043,8 @@ internal class CSharpFormatter : CodeFormatter {
     return sb.ToString();
   }
 
-  protected virtual string TypeName(TypeReference tr, ICustomAttributeProvider? context = null,
-                                    MethodDefinition? methodContext = null, TypeDefinition? typeContext = null) {
+  protected override string TypeName(TypeReference tr, ICustomAttributeProvider? context = null,
+                                     MethodDefinition? methodContext = null, TypeDefinition? typeContext = null) {
     var prefix = "";
     // ref X can only occur on outer types; can't have an array of `ref int` or a `Func<ref int>`, so handle that here
     if (tr is ByReferenceType brt) { // => ref T
