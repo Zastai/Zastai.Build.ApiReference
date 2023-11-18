@@ -4,15 +4,18 @@ namespace Zastai.Build.ApiReference;
 
 internal abstract class CodeFormatter {
 
-  private readonly ISet<string> _attributesToExclude = new HashSet<string>();
-
-  private readonly ISet<string> _attributesToInclude = new HashSet<string>();
-
   protected string? CurrentNamespace { get; private set; }
 
   protected TypeDefinition? CurrentType { get; private set; }
 
   protected virtual int TopLevelTypeIndent => 2;
+
+  private readonly ISet<string> _attributesToExclude = new HashSet<string>();
+
+  private readonly ISet<string> _attributesToInclude = new HashSet<string>();
+
+  // FIXME: IReadOnlySet would be better, but is not available on .NET Framework.
+  private ISet<string>? _runtimeFeatures;
 
   protected virtual IEnumerable<string?> AssemblyAttributeFooter(AssemblyDefinition ad) => Enumerable.Empty<string?>();
 
@@ -208,6 +211,7 @@ internal abstract class CodeFormatter {
   }
 
   public IEnumerable<string?> FormatPublicApi(AssemblyDefinition ad) {
+    this._runtimeFeatures = ad.GetRuntimeFeatures();
     foreach (var line in this.FileHeader(ad)) {
       yield return line;
     }
@@ -223,6 +227,7 @@ internal abstract class CodeFormatter {
     foreach (var line in this.FileFooter(ad)) {
       yield return line;
     }
+    this._runtimeFeatures = null;
   }
 
   protected abstract string? GenericParameterConstraints(GenericParameter gp);
@@ -241,6 +246,8 @@ internal abstract class CodeFormatter {
       }
     }
   }
+
+  protected bool HasRuntimeFeature(string feature) => this._runtimeFeatures?.Contains(feature) ?? false;
 
   public void IncludeCustomAttributes(IEnumerable<string> patterns) {
     foreach (var pattern in patterns) {

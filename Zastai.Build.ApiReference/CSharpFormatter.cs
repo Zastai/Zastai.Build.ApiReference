@@ -1179,7 +1179,7 @@ internal class CSharpFormatter : CodeFormatter {
       else if (tr == ts.Int64) {
         sb.Append("long");
       }
-      else if (tr == ts.IntPtr && tnc.Main.IsNativeInteger(tnc.IntegerIndex++)) {
+      else if (tr == ts.IntPtr && (this.HasRuntimeFeature("NumericIntPtr") || tnc.Main.IsNativeInteger(tnc.IntegerIndex++))) {
         sb.Append("nint");
       }
       else if (tr == ts.SByte) {
@@ -1203,7 +1203,7 @@ internal class CSharpFormatter : CodeFormatter {
       else if (tr == ts.UInt64) {
         sb.Append("ulong");
       }
-      else if (tr == ts.UIntPtr && tnc.Main.IsNativeInteger(tnc.IntegerIndex++)) {
+      else if (tr == ts.UIntPtr && (this.HasRuntimeFeature("NumericIntPtr") || tnc.Main.IsNativeInteger(tnc.IntegerIndex++))) {
         sb.Append("nuint");
       }
       else if (tr == ts.Void) {
