@@ -124,4 +124,9 @@
 
   </Target>
 
+  <Target Name="ListAttributesExcludedFromApiReference">
+    <Message Importance="high" Text="The following attributes are configured to be excluded from the generated API reference:" />
+    <Message Importance="high" Text="- %(ApiReferenceExcludeAttribute.Identity)" />
+  </Target>
+
 </Project>
