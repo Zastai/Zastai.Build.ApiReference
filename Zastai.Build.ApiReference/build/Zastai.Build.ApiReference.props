@@ -1,16 +1,24 @@
 <Project>
 
   <!-- Configuration Defaults; can be modified in the project. -->
+
+  <!-- Attributes to include in the API reference.
+     - If this item group is empty, all attributes are included unless further excluded via @(ApiReferenceExcludeAttribute). -->
   <ItemGroup>
+    <!-- <ApiReferenceIncludeAttribute Include="..." /> -->
 
-    <!-- Attributes to include in the API reference.
-       - If this item group is empty, all attributes are included unless further excluded via @(ApiReferenceExcludeAttribute). -->
-    <!-- <ApiReferenceIncludeAttribute Include="*" /> -->
+    <!-- Empty by default (i.e. all attributes are included). -->
 
-    <!-- Attributes to exclude from the API reference; applied to attributes included via @(ApiReferenceIncludeAttribute).
-       - If this item group is empty, all attributes are included. -->
+  </ItemGroup>
+
+  <!-- Attributes to exclude from the API reference; applied to attributes included via @(ApiReferenceIncludeAttribute).
+     - If this item group is empty, all attributes are included. -->
+  <ItemGroup>
+    <!-- <ApiReferenceExcludeAttribute Include="..." /> -->
+
     <ApiReferenceExcludeAttribute Include="__DynamicallyInvokableAttribute" />
     <ApiReferenceExcludeAttribute Include="System.Diagnostics.CodeAnalysis.SuppressMessageAttribute" />
+    <ApiReferenceExcludeAttribute Include="System.Diagnostics.DebuggableAttribute" />
     <ApiReferenceExcludeAttribute Include="System.Reflection.AssemblyAlgorithmIdAttribute" />
     <ApiReferenceExcludeAttribute Include="System.Reflection.AssemblyCompanyAttribute" />
     <ApiReferenceExcludeAttribute Include="System.Reflection.AssemblyConfigurationAttribute" />
@@ -31,6 +39,9 @@
     <ApiReferenceExcludeAttribute Include="System.Reflection.AssemblyTrademarkAttribute" />
     <ApiReferenceExcludeAttribute Include="System.Reflection.AssemblyVersionAttribute" />
     <ApiReferenceExcludeAttribute Include="System.Resources.NeutralResourcesLanguageAttribute" />
+    <ApiReferenceExcludeAttribute Include="System.Runtime.CompilerServices.CompilationRelaxationsAttribute" />
+    <ApiReferenceExcludeAttribute Include="System.Runtime.CompilerServices.RuntimeCompatibilityAttribute" />
+    <ApiReferenceExcludeAttribute Include="System.Runtime.Versioning.RequiresPreviewFeaturesAttribute" />
 
   </ItemGroup>
 
