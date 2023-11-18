@@ -12,7 +12,11 @@ internal abstract partial class CodeFormatter : IComparer<MethodDefinition> {
     if (y is null) {
       return +1;
     }
-    // Level 1: the method name
+    // Level 0: Put the constructors at the top.
+    if (x.IsRuntimeSpecialName != y.IsRuntimeSpecialName) {
+      return x.IsRuntimeSpecialName ? -1 : +1;
+    }
+    // Level 1: The method name.
     // FIXME: Or should this use the invariant culture?
     {
       var name1 = this.MethodName(x);
@@ -22,7 +26,7 @@ internal abstract partial class CodeFormatter : IComparer<MethodDefinition> {
         return cmp;
       }
     }
-    // Level 2: generic types
+    // Level 2: Generic types.
     if (x.HasGenericParameters && y.HasGenericParameters) {
       using var walker1 = x.GenericParameters.GetEnumerator();
       using var walker2 = y.GenericParameters.GetEnumerator();
@@ -50,7 +54,7 @@ internal abstract partial class CodeFormatter : IComparer<MethodDefinition> {
     else if (y.HasGenericParameters) {
       return -1;
     }
-    // Level Three: parameter types
+    // Level Three: Parameter types.
     if (x.HasParameters && y.HasParameters) {
       using var walker1 = x.Parameters.GetEnumerator();
       using var walker2 = y.Parameters.GetEnumerator();
