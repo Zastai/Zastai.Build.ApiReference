@@ -12,13 +12,17 @@ internal abstract partial class CodeFormatter : IComparer<MethodDefinition> {
     if (y is null) {
       return +1;
     }
-    // First level: the method name
+    // Level 1: the method name
     // FIXME: Or should this use the invariant culture?
-    var cmp = string.Compare(x.Name, y.Name, StringComparison.Ordinal);
-    if (cmp != 0) {
-      return cmp;
+    {
+      var name1 = this.MethodName(x);
+      var name2 = this.MethodName(y);
+      var cmp = string.Compare(name1, name2, StringComparison.Ordinal);
+      if (cmp != 0) {
+        return cmp;
+      }
     }
-    // Second level: generic types
+    // Level 2: generic types
     if (x.HasGenericParameters && y.HasGenericParameters) {
       using var walker1 = x.GenericParameters.GetEnumerator();
       using var walker2 = y.GenericParameters.GetEnumerator();
@@ -31,7 +35,7 @@ internal abstract partial class CodeFormatter : IComparer<MethodDefinition> {
         var name1 = walker1.Current?.FullName;
         var name2 = walker2.Current?.FullName;
         // FIXME: Or should this use the invariant culture?
-        cmp = string.Compare(name1, name2, StringComparison.Ordinal);
+        var cmp = string.Compare(name1, name2, StringComparison.Ordinal);
         if (cmp != 0) {
           return cmp;
         }
@@ -46,7 +50,7 @@ internal abstract partial class CodeFormatter : IComparer<MethodDefinition> {
     else if (y.HasGenericParameters) {
       return -1;
     }
-    // Level 3: parameter types
+    // Level Three: parameter types
     if (x.HasParameters && y.HasParameters) {
       using var walker1 = x.Parameters.GetEnumerator();
       using var walker2 = y.Parameters.GetEnumerator();
@@ -61,7 +65,7 @@ internal abstract partial class CodeFormatter : IComparer<MethodDefinition> {
         var type2 = walker2.Current?.ParameterType;
         var name2 = type2 is null ? null : this.TypeName(type2, y);
         // FIXME: Or should this use the invariant culture?
-        cmp = string.Compare(name1, name2, StringComparison.Ordinal);
+        var cmp = string.Compare(name1, name2, StringComparison.Ordinal);
         if (cmp != 0) {
           return cmp;
         }

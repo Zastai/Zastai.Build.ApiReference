@@ -548,19 +548,38 @@ internal class CSharpFormatter : CodeFormatter {
     if (md.IsReadOnly()) {
       sb.Append("readonly ");
     }
+    if (md is { IsRuntimeSpecialName: false, IsSpecialName: false }) {
+      sb.Append(this.TypeName(md.ReturnType, md.MethodReturnType)).Append(' ');
+    }
+    sb.Append(this.MethodName(md))
+      .Append(this.GenericParameters(md, new TypeNameContext(md, md)))
+      .Append(this.Parameters(md));
+    var constraints = this.GenericParameterConstraints(md, indent + 2).ToList();
+    if (constraints.Count == 0) {
+      sb.Append(';');
+    }
+    else {
+      constraints[constraints.Count - 1] += ';';
+    }
+    yield return sb.ToString();
+    foreach (var constraint in constraints) {
+      yield return constraint;
+    }
+  }
+
+  protected override string MethodName(MethodDefinition md) {
     var returnTypeName = this.TypeName(md.ReturnType, md.MethodReturnType);
     if (md.IsRuntimeSpecialName) {
       // Runtime-Special Names
       if (md.Name is ".ctor" or ".cctor") {
-        sb.Append(md.DeclaringType.NonGenericName());
+        return md.DeclaringType.NonGenericName();
       }
-      else {
-        sb.Append(returnTypeName).Append(" /* TODO: Map RunTime-Special Method Name Correctly */ ").Append(md.Name);
-      }
+      return $"{returnTypeName} /* TODO: Map RunTime-Special Method Name Correctly */ {md.Name}";
     }
-    else if (md.IsSpecialName) {
+    if (md.IsSpecialName) {
       // Other Special Names - these will probably look/work fine if not treated specially
       if (md.Name.StartsWith("op_")) {
+        var sb = new StringBuilder();
         var op = md.Name.Substring(3);
         if (op is "CheckedExplicit" or "Explicit" or "Implicit") {
           sb.Append(op is "Implicit" ? "implicit" : "explicit").Append(" operator ");
@@ -733,26 +752,11 @@ internal class CSharpFormatter : CodeFormatter {
               break;
           }
         }
+        return sb.ToString();
       }
-      else {
-        sb.Append(returnTypeName).Append(" /* TODO: Map Special Method Name Correctly */ ").Append(md.Name);
-      }
+      return $"{returnTypeName} /* TODO: Map Special Method Name Correctly */ {md.Name}";
     }
-    else {
-      sb.Append(returnTypeName).Append(' ').Append(md.Name);
-    }
-    sb.Append(this.GenericParameters(md, new TypeNameContext(md, md))).Append(this.Parameters(md));
-    var constraints = this.GenericParameterConstraints(md, indent + 2).ToList();
-    if (constraints.Count == 0) {
-      sb.Append(';');
-    }
-    else {
-      constraints[constraints.Count - 1] += ';';
-    }
-    yield return sb.ToString();
-    foreach (var constraint in constraints) {
-      yield return constraint;
-    }
+    return md.Name;
   }
 
   protected override string ModuleAttributeLine(string attribute) => $"[module: {attribute}]";

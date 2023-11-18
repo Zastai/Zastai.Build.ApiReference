@@ -281,6 +281,8 @@ internal abstract partial class CodeFormatter {
 
   protected abstract IEnumerable<string?> Method(MethodDefinition md, int indent);
 
+  protected abstract string MethodName(MethodDefinition md);
+
   protected IEnumerable<string?> Methods(TypeDefinition td, int indent) {
     if (!td.HasMethods) {
       yield break;
