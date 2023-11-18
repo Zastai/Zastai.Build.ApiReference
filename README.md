@@ -101,7 +101,33 @@ attribute type (like ``Namespace.GenericTypeName`2/NestedAttribute``).
 Attributes handled as part of syntax generation (like
 `System.ParamArrayAttribute` and
 `System.Runtime.CompilerServices.ExtensionAttribute`) are never
-included.
+included. Note that wildcards are not supported (MSBuild would match
+those against the file system).
+
+`ApiReferenceExcludeAttribute` has a number of attributes preloaded; you
+can list these out using something like this:
+
+```xml
+  <Target Name="ListAttributesExcludedFromApiReference">
+    <Message Importance="high" Text="The following attributes are configured to be excluded from the generated API reference:" />
+    <Message Importance="high" Text="- %(ApiReferenceExcludeAttribute.Identity)" />
+  </Target>
+```
+
+You can also use the `Remove` option of the `ItemGroup` to remove some
+or all of them if you would prefer to retain them; this option _does_
+allow wildcards (they are matched against existing items).
+
+For example,
+
+```xml
+  <ItemGroup>
+    <ApiReferenceExcludeAttribute Remove="System.Reflection.Assembly*Attribute" />
+  </ItemGroup>
+```
+
+will re-enable all the assembly metadata attributes (like
+`[AssemblyProduct]` and `[AssemblyCopyright]`).
 
 ## Release Notes
 
