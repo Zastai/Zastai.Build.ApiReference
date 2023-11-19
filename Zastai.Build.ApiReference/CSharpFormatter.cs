@@ -191,6 +191,9 @@ internal class CSharpFormatter : CodeFormatter {
     else if (fd.IsFamilyOrAssembly) {
       sb.Append("protected internal ");
     }
+    if (fd.IsRequired()) {
+      sb.Append("required ");
+    }
     var isDecimalConstant = false;
     decimal? decimalConstantValue = null;
     if (fd.IsLiteral) {
@@ -341,12 +344,14 @@ internal class CSharpFormatter : CodeFormatter {
             // Mapped to "params" keyword on parameters.
             return true;
           case "ObsoleteAttribute":
-            // A few very specific forms are syntax-related. Alright, 1 form (so far):
+            // A few very specific forms are syntax-related:
             // - [Obsolete("Types with embedded references are not supported in this version of your compiler.", true)]
+            // - [Obsolete("Constructors of types with required members are not supported in this version of your compiler.", true)]
             if (ca.HasConstructorArguments && ca.ConstructorArguments.Count == 2) {
               if (ca.ConstructorArguments[1].Value is true) {
                 var message = ca.ConstructorArguments[0].Value as string;
-                return message == "Types with embedded references are not supported in this version of your compiler.";
+                return message is "Types with embedded references are not supported in this version of your compiler."
+                  or "Constructors of types with required members are not supported in this version of your compiler.";
               }
             }
             break;
@@ -389,6 +394,9 @@ internal class CSharpFormatter : CodeFormatter {
             return true;
           case "PreserveBaseOverridesAttribute":
             // Used to detect covariant return types.
+            return true;
+          case "RequiredMemberAttribute":
+            // Dropped (for types) or mapped to "required" keyword (for fields/properties).
             return true;
           case "ScopedRefAttribute":
             // Mapped to "scoped" keyword.
@@ -865,7 +873,11 @@ internal class CSharpFormatter : CodeFormatter {
     }
     {
       var sb = new StringBuilder();
-      sb.Append(' ', indent).Append(this.TypeName(pd.PropertyType, pd)).Append(' ');
+      sb.Append(' ', indent);
+      if (pd.IsRequired()) {
+        sb.Append("required ");
+      }
+      sb.Append(this.TypeName(pd.PropertyType, pd)).Append(' ');
       // FIXME: Or should this only be done when the type has [System.Reflection.DefaultMemberAttribute("Item")]?
       if (pd.HasParameters && pd.Name == "Item") {
         sb.Append("this");

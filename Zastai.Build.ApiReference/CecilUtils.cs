@@ -283,6 +283,10 @@ internal static class CecilUtils {
     => provider is not null && provider.HasCustomAttributes &&
        provider.CustomAttributes.Any(ca => ca.AttributeType.IsNamed("System.Runtime.CompilerServices", "IsReadOnlyAttribute"));
 
+  public static bool IsRequired(this IMemberDefinition? md)
+    => md is not null && md.HasCustomAttributes &&
+       md.CustomAttributes.Any(ca => ca.AttributeType.IsNamed("System.Runtime.CompilerServices", "RequiredMemberAttribute"));
+
   public static bool IsScopedRef(this ParameterDefinition? pd)
     => pd is not null && pd.HasCustomAttributes &&
        pd.CustomAttributes.Any(ca => ca.AttributeType.IsNamed("System.Runtime.CompilerServices", "ScopedRefAttribute"));
