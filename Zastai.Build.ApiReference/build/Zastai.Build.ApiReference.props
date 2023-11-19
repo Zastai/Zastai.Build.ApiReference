@@ -40,6 +40,8 @@
     <ApiReferenceExcludeAttribute Include="System.Reflection.AssemblyVersionAttribute" />
     <ApiReferenceExcludeAttribute Include="System.Resources.NeutralResourcesLanguageAttribute" />
     <ApiReferenceExcludeAttribute Include="System.Runtime.CompilerServices.CompilationRelaxationsAttribute" />
+    <ApiReferenceExcludeAttribute Include="System.Runtime.CompilerServices.CompilerFeatureRequiredAttribute" />
+    <ApiReferenceExcludeAttribute Include="System.Runtime.CompilerServices.RefSafetyRulesAttribute" />
     <ApiReferenceExcludeAttribute Include="System.Runtime.CompilerServices.RuntimeCompatibilityAttribute" />
     <ApiReferenceExcludeAttribute Include="System.Runtime.Versioning.RequiresPreviewFeaturesAttribute" />
 

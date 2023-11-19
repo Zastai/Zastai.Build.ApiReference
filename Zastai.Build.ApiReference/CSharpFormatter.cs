@@ -340,6 +340,16 @@ internal class CSharpFormatter : CodeFormatter {
           case "ParamArrayAttribute":
             // Mapped to "params" keyword on parameters.
             return true;
+          case "ObsoleteAttribute":
+            // A few very specific forms are syntax-related. Alright, 1 form (so far):
+            // - [Obsolete("Types with embedded references are not supported in this version of your compiler.", true)]
+            if (ca.HasConstructorArguments && ca.ConstructorArguments.Count == 2) {
+              if (ca.ConstructorArguments[1].Value is true) {
+                var message = ca.ConstructorArguments[0].Value as string;
+                return message == "Types with embedded references are not supported in this version of your compiler.";
+              }
+            }
+            break;
         }
         break;
       case "System.Runtime.CompilerServices":
@@ -379,6 +389,9 @@ internal class CSharpFormatter : CodeFormatter {
             return true;
           case "PreserveBaseOverridesAttribute":
             // Used to detect covariant return types.
+            return true;
+          case "ScopedRefAttribute":
+            // Mapped to "scoped" keyword.
             return true;
           case "TupleElementNamesAttribute":
             // Names extracted for use in tuple syntax.
@@ -781,6 +794,9 @@ internal class CSharpFormatter : CodeFormatter {
   private string Parameter(ParameterDefinition pd) {
     var sb = new StringBuilder();
     sb.Append(this.CustomAttributesInline(pd));
+    if (pd.IsScopedRef()) {
+      sb.Append("scoped ");
+    }
     if (pd.IsIn) {
       sb.Append("in ");
     }

@@ -283,6 +283,10 @@ internal static class CecilUtils {
     => provider is not null && provider.HasCustomAttributes &&
        provider.CustomAttributes.Any(ca => ca.AttributeType.IsNamed("System.Runtime.CompilerServices", "IsReadOnlyAttribute"));
 
+  public static bool IsScopedRef(this ParameterDefinition? pd)
+    => pd is not null && pd.HasCustomAttributes &&
+       pd.CustomAttributes.Any(ca => ca.AttributeType.IsNamed("System.Runtime.CompilerServices", "ScopedRefAttribute"));
+
   public static bool IsUnmanaged(this GenericParameter? gp)
     => gp is not null && gp.HasCustomAttributes &&
        gp.CustomAttributes.Any(ca => ca.AttributeType.IsNamed("System.Runtime.CompilerServices", "IsUnmanagedAttribute"));
@@ -293,12 +297,6 @@ internal static class CecilUtils {
     var name = tr.Name;
     var backTick = name.IndexOf('`');
     return backTick >= 0 ? name.Substring(0, backTick) : name;
-  }
-
-  private static class Obsolete {
-
-    public const string RefStructs = "Types with embedded references are not supported in this version of your compiler.";
-
   }
 
   public static bool TryUnwrapNullable(this TypeReference tr, [NotNullWhen(true)] out TypeReference? unwrapped) {
