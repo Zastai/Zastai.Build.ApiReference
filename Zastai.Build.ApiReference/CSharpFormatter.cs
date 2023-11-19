@@ -417,6 +417,11 @@ internal class CSharpFormatter : CodeFormatter {
   protected override string Literal(double value) => value switch {
     Math.E => "Math.E",
     Math.PI => "Math.PI",
+#if NETFRAMEWORK
+    6.283185307179586476925 => "Math.Tau",
+#else
+    Math.Tau => "Math.Tau",
+#endif
     double.Epsilon => "double.Epsilon",
     double.MaxValue => "double.MaxValue",
     double.MinValue => "double.MinValue",
@@ -430,9 +435,11 @@ internal class CSharpFormatter : CodeFormatter {
 #if NETFRAMEWORK
     2.71828183F => "MathF.E",
     3.14159265F => "MathF.PI",
+    6.283185307F => "MathF.Tau",
 #else
     MathF.E => "MathF.E",
     MathF.PI => "MathF.PI",
+    MathF.Tau => "MathF.Tau",
 #endif
     float.Epsilon => "float.Epsilon",
     float.MaxValue => "float.MaxValue",
