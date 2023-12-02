@@ -579,10 +579,11 @@ internal class CSharpFormatter : CodeFormatter {
     if (md.IsReadOnly()) {
       sb.Append("readonly ");
     }
-    if (md is { IsRuntimeSpecialName: false, IsSpecialName: false }) {
-      sb.Append(this.TypeName(md.ReturnType, md.MethodReturnType)).Append(' ');
+    var methodName = this.MethodName(md, out var returnTypeName);
+    if (returnTypeName.Length > 0) {
+      sb.Append(returnTypeName).Append(' ');
     }
-    sb.Append(this.MethodName(md))
+    sb.Append(methodName)
       .Append(this.GenericParameters(md, new TypeNameContext(md, md)))
       .Append(this.Parameters(md));
     var constraints = this.GenericParameterConstraints(md, indent + 2).ToList();
@@ -598,14 +599,15 @@ internal class CSharpFormatter : CodeFormatter {
     }
   }
 
-  protected override string MethodName(MethodDefinition md) {
-    var returnTypeName = this.TypeName(md.ReturnType, md.MethodReturnType);
+  protected override string MethodName(MethodDefinition md, out string returnTypeName) {
+    returnTypeName = this.TypeName(md.ReturnType, md.MethodReturnType);
     if (md.IsRuntimeSpecialName) {
       // Runtime-Special Names
       if (md.Name is ".ctor" or ".cctor") {
+        returnTypeName = "";
         return md.DeclaringType.NonGenericName();
       }
-      return $"{returnTypeName} /* TODO: Map RunTime-Special Method Name Correctly */ {md.Name}";
+      return $"/* Unhandled RunTime-Special Name */ {md.Name}";
     }
     if (md.IsSpecialName) {
       // Other Special Names - these will probably look/work fine if not treated specially
@@ -631,9 +633,10 @@ internal class CSharpFormatter : CodeFormatter {
         if (op is "Explicit" or "Implicit") {
           prefix = op is "Implicit" ? "implicit" : "explicit";
           name = returnTypeName;
+          returnTypeName = "";
         }
         else {
-          prefix = returnTypeName;
+          prefix = "";
           switch (op) {
             case "Addition":
             case "UnaryPlus":
@@ -893,8 +896,10 @@ internal class CSharpFormatter : CodeFormatter {
               break;
           }
         }
-        sb.Append(prefix);
-        sb.Append(" operator ");
+        if (prefix.Length > 0) {
+          sb.Append(prefix).Append(' ');
+        }
+        sb.Append("operator ");
         if (infix.Length > 0) {
           sb.Append(infix).Append(' ');
         }
@@ -909,9 +914,9 @@ internal class CSharpFormatter : CodeFormatter {
       }
       if (md.Name.StartsWith("|") && md.Name.EndsWith("|")) {
         // F# Active Pattern
-        return $"{returnTypeName} F# match {md.Name}";
+        return $"F# match {md.Name}";
       }
-      return $"{returnTypeName} /* TODO: Map Special Method Name Correctly */ {md.Name}";
+      return $"/* Special Name */ {md.Name}";
     }
     return md.Name;
   }

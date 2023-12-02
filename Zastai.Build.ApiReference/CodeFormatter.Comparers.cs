@@ -17,11 +17,12 @@ internal abstract partial class CodeFormatter : IComparer<MethodDefinition> {
       return x.IsRuntimeSpecialName ? -1 : +1;
     }
     // Level 1: The method name.
-    // FIXME: Or should this use the invariant culture?
-    // FIXME: This currently includes the return type!
+    string xReturnType;
+    string yReturnType;
     {
-      var name1 = this.MethodName(x);
-      var name2 = this.MethodName(y);
+      var name1 = this.MethodName(x, out xReturnType);
+      var name2 = this.MethodName(y, out yReturnType);
+      // FIXME: Or should this use the invariant culture?
       var cmp = string.Compare(name1, name2, StringComparison.Ordinal);
       if (cmp != 0) {
         return cmp;
@@ -86,7 +87,9 @@ internal abstract partial class CodeFormatter : IComparer<MethodDefinition> {
       return -1;
     }
     // FIXME: Are there other things to compare?
-    return 0;
+    // The return type _should not_ matter, but let's include that in the sequence just in case.
+    // FIXME: Or should this use the invariant culture?
+    return string.Compare(xReturnType, yReturnType, StringComparison.Ordinal);
   }
 
 }
