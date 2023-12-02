@@ -18,6 +18,7 @@ internal abstract partial class CodeFormatter : IComparer<MethodDefinition> {
     }
     // Level 1: The method name.
     // FIXME: Or should this use the invariant culture?
+    // FIXME: This currently includes the return type!
     {
       var name1 = this.MethodName(x);
       var name2 = this.MethodName(y);
