@@ -48,7 +48,7 @@ internal class CSharpFormatter : CodeFormatter {
     if (md.IsPublic) {
       sb.Append("public ");
     }
-     else if (md.IsFamily) {
+    else if (md.IsFamily) {
       sb.Append("protected ");
     }
     else if (md.IsFamilyOrAssembly) {
@@ -612,178 +612,304 @@ internal class CSharpFormatter : CodeFormatter {
       if (md.Name.StartsWith("op_")) {
         var sb = new StringBuilder();
         var op = md.Name.Substring(3);
-        if (op is "CheckedExplicit" or "Explicit" or "Implicit") {
-          sb.Append(op is "Implicit" ? "implicit" : "explicit").Append(" operator ");
-          if (op == "CheckedExplicit") {
-            sb.Append("checked ");
-          }
-          sb.Append(returnTypeName);
+        var fsharp = false;
+        string prefix;
+        string name;
+        var infix = "";
+        var suffix = "";
+        // Also seen on regular methods; not entirely sure what it means, so there is no special handling for it as such. We just
+        // need to make sure it's ignored in the context of this name lookup.
+        if (op.EndsWith("$W")) {
+          suffix = "$W";
+          fsharp = true;
+          op = op.Remove(op.Length - 2);
+        }
+        if (op.StartsWith("Checked")) {
+          infix = "checked";
+          op = op.Substring(7);
+        }
+        if (op is "Explicit" or "Implicit") {
+          prefix = op is "Implicit" ? "implicit" : "explicit";
+          name = returnTypeName;
         }
         else {
-          sb.Append(returnTypeName).Append(" operator ");
+          prefix = returnTypeName;
           switch (op) {
-            // Relational
-            case "Equality":
-              sb.Append("==");
-              break;
-            case "GreaterThan":
-              sb.Append('>');
-              break;
-            case "GreaterThanOrEqual":
-              sb.Append(">=");
-              break;
-            case "Inequality":
-              sb.Append("!=");
-              break;
-            case "LessThan":
-              sb.Append('<');
-              break;
-            case "LessThanOrEqual":
-              sb.Append("<=");
-              break;
-            // Logical
-            case "False":
-              sb.Append("false");
-              break;
-            case "LogicalAnd":
-              // Not overridable in C#.
-              sb.Append("&&");
-              break;
-            case "LogicalNot":
-              sb.Append('!');
-              break;
-            case "LogicalOr":
-              // Not overridable in C#.
-              sb.Append("||");
-              break;
-            case "True":
-              sb.Append("true");
-              break;
-            // Arithmetic
             case "Addition":
             case "UnaryPlus":
-              sb.Append('+');
+              name = "+";
+              break;
+            case "AdditionAssignment":
+              name = "+=";
+              break;
+            case "AddressOf":
+              fsharp = true;
+              name = "~&";
+              break;
+            case "Append":
+              fsharp = true;
+              name = "@";
+              break;
+            case "Assign":
+              name = "=";
               break;
             case "BitwiseAnd":
-              sb.Append("&");
+              name = "&";
+              break;
+            case "BitwiseAndAssignment":
+              name = "&=";
               break;
             case "BitwiseOr":
-              sb.Append("|");
+              name = "|";
               break;
-            case "CheckedAddition":
-              sb.Append("checked +");
+            case "BitwiseOrAssignment":
+              name = "|=";
               break;
-            case "CheckedDecrement":
-              sb.Append("checked --");
+            case "BooleanAnd":
+              fsharp = true;
+              name = "&&";
               break;
-            case "CheckedDivision":
-              sb.Append("checked /");
+            case "BooleanOr":
+              fsharp = true;
+              name = "||";
               break;
-            case "CheckedIncrement":
-              sb.Append("checked --");
+            case "ColonEquals":
+              fsharp = true;
+              name = ":=";
               break;
-            case "CheckedMultiplication":
-              sb.Append("checked *");
+            case "Comma":
+              name = ",";
               break;
-            case "CheckedSubtraction":
-              sb.Append("checked -");
+            case "ComposeLeft":
+              fsharp = true;
+              name = "<<";
+              break;
+            case "ComposeRight":
+              fsharp = true;
+              name = ">>";
+              break;
+            case "Concatenate":
+              fsharp = true;
+              name = "^";
+              break;
+            case "Cons":
+              fsharp = true;
+              name = "::";
               break;
             case "Decrement":
-              sb.Append("--");
+              name = "--";
+              break;
+            case "Dereference":
+              fsharp = true;
+              name = "!";
               break;
             case "Division":
-              sb.Append('/');
+              name = "/";
+              break;
+            case "DivisionAssignment":
+              name = "/=";
+              break;
+            case "Dynamic":
+              fsharp = true;
+              name = "?";
+              break;
+            case "DynamicAssignment":
+              fsharp = true;
+              name = "?<-";
+              break;
+            case "Equality":
+              name = "==";
               break;
             case "ExclusiveOr":
-              sb.Append('^');
+              name = "^";
               break;
-            case "Exponent":
-              // Not available in C#, but defined in ECMA-335.
-              sb.Append("**");
+            case "ExclusiveOrAssignment":
+              name = "^=";
+              break;
+            case "Exponent": // ECMA-335
+            case "Exponentiation": // F#
+              name = "**";
+              break;
+            case "False":
+              name = "false";
+              break;
+            case "GreaterThan":
+              name = ">";
+              break;
+            case "GreaterThanOrEqual":
+              name = ">=";
               break;
             case "Increment":
-              sb.Append("++");
+              name = "++";
+              break;
+            case "Inequality":
+              name = "!=";
+              break;
+            case "IntegerAddressOf":
+              fsharp = true;
+              name = "~&&";
               break;
             case "LeftShift":
-              sb.Append("<<");
+              name = "<<";
+              break;
+            case "LeftShiftAssignment":
+              name = "<<=";
+              break;
+            case "LessThan":
+              name = "<";
+              break;
+            case "LessThanOrEqual":
+              name = "<=";
+              break;
+            case "LogicalAnd":
+              name = "&&";
+              break;
+            case "LogicalNot":
+              name = "!";
+              break;
+            case "LogicalOr":
+              name = "||";
+              break;
+            case "MemberAccess":
+              name = "->";
               break;
             case "Modulus":
-              sb.Append('%');
+              name = "%";
+              break;
+            case "ModulusAssignment":
+              name = "%=";
+              break;
+            case "MultiplicationAssignment": // ECMA-335
+            case "MultiplyAssignment": // F#
+              name = "*=";
               break;
             case "Multiply":
-              sb.Append('*');
+              name = "*";
+              break;
+            case "Nil":
+              fsharp = true;
+              name = "[]";
               break;
             case "OnesComplement":
-              sb.Append('~');
+              name = "~";
+              break;
+            case "PipeLeft":
+              fsharp = true;
+              name = "<|";
+              break;
+            case "PipeLeft2":
+              fsharp = true;
+              name = "<||";
+              break;
+            case "PipeLeft3":
+              fsharp = true;
+              name = "<|||";
+              break;
+            case "PipeRight":
+              fsharp = true;
+              name = "|>";
+              break;
+            case "PipeRight2":
+              fsharp = true;
+              name = "||>";
+              break;
+            case "PipeRight3":
+              fsharp = true;
+              name = "|||>";
+              break;
+            case "PointerToMemberSelection":
+              name = "->*";
+              break;
+            case "Quotation":
+              fsharp = true;
+              name = "<@ @>";
+              break;
+            case "QuotationUntyped":
+              fsharp = true;
+              name = "<@@ @@>";
+              break;
+            case "Range":
+              fsharp = true;
+              name = "..";
+              break;
+            case "RangeStep":
+              fsharp = true;
+              name = ".. ..";
               break;
             case "RightShift":
-              sb.Append(">>");
+              name = ">>";
+              break;
+            case "RightShiftAssignment":
+              name = ">>=";
               break;
             case "SignedRightShift":
-              // Not available in C#, but defined in ECMA-335.
-              sb.Append(">> /* signed */");
+              name = "/* signed */ >>";
               break;
             case "Subtraction":
             case "UnaryNegation":
-              sb.Append('-');
-              break;
-            case "UnsignedRightShift":
-              sb.Append(">>>");
-              break;
-            // Assignments - none of these are overridable in C# (even when they exist)
-            case "AdditionAssignment":
-              sb.Append("+=");
-              break;
-            case "Assign":
-              // Not available in C#, but defined in ECMA-335.
-              sb.Append("=");
-              break;
-            case "BitwiseAndAssignment":
-              sb.Append("&=");
-              break;
-            case "BitwiseOrAssignment":
-              sb.Append("|=");
-              break;
-            case "DivisionAssignment":
-              sb.Append("/=");
-              break;
-            case "ExclusiveOrAssignment":
-              sb.Append("^=");
-              break;
-            case "ModulusAssignment":
-              sb.Append("%=");
-              break;
-            case "MultiplicationAssignment":
-              sb.Append("*=");
-              break;
-            case "LeftShiftAssignment":
-              sb.Append("<<=");
-              break;
-            case "RightShiftAssignment":
-              sb.Append(">>=");
+              name = "-";
               break;
             case "SubtractionAssignment":
-              sb.Append("*=");
+              name = "-=";
+              break;
+            case "True":
+              name = "true";
+              break;
+            case "UnsignedRightShift":
+              name = ">>>";
               break;
             case "UnsignedRightShiftAssignment":
-              sb.Append(">>>=");
-              break;
-            // Special Cases - none of these are overridable in C#
-            case "Comma":
-              sb.Append(',');
-              break;
-            case "MemberAccess":
-              sb.Append("->");
-              break;
-            case "PointerToMemberSelection":
-              sb.Append("->*");
+              name = ">>>=";
               break;
             default:
-              sb.Append("/* TODO: Map Operator Correctly */ ").Append(op);
+              if (Constants.FSharpCustomOperatorPattern.IsMatch(op)) {
+                fsharp = true;
+                name = op.Replace("Amp", "&")
+                         .Replace("At", "@")
+                         .Replace("Bang", "!")
+                         .Replace("Bar", "|")
+                         .Replace("Comma", ",")
+                         .Replace("Divide", "/")
+                         .Replace("Dollar", "$")
+                         .Replace("Dot", ".")
+                         .Replace("Equals", "=")
+                         .Replace("Greater", ">")
+                         .Replace("Hat", "^")
+                         .Replace("LBrack", "[")
+                         .Replace("LParen", "(")
+                         .Replace("Less", "<")
+                         .Replace("Multiply", "*")
+                         .Replace("Minus", "-")
+                         .Replace("Percent", "%")
+                         .Replace("Plus", "+")
+                         .Replace("Qmark", "?")
+                         .Replace("RBrack", "]")
+                         .Replace("RParen", ")")
+                         .Replace("Twiddle", "~");
+              }
+              else {
+                name = $"/* TODO: Map Operator Correctly */ {op}";
+              }
               break;
           }
         }
+        sb.Append(prefix);
+        sb.Append(" operator ");
+        if (infix.Length > 0) {
+          sb.Append(infix).Append(' ');
+        }
+        if (fsharp) {
+          sb.Append("F# { ").Append(name).Append(" }");
+        }
+        else {
+          sb.Append(name);
+        }
+        sb.Append(suffix);
         return sb.ToString();
+      }
+      if (md.Name.StartsWith("|") && md.Name.EndsWith("|")) {
+        // F# Active Pattern
+        return $"{returnTypeName} F# match {md.Name}";
       }
       return $"{returnTypeName} /* TODO: Map Special Method Name Correctly */ {md.Name}";
     }
