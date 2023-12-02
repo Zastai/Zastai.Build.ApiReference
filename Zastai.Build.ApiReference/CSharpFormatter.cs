@@ -682,7 +682,7 @@ internal class CSharpFormatter : CodeFormatter {
             case "CheckedIncrement":
               sb.Append("checked --");
               break;
-            case "CheckedMultiplication":
+            case "CheckedMultiply":
               sb.Append("checked *");
               break;
             case "CheckedSubtraction":
@@ -763,7 +763,7 @@ internal class CSharpFormatter : CodeFormatter {
               sb.Append(">>=");
               break;
             case "SubtractionAssignment":
-              sb.Append("*=");
+              sb.Append("-=");
               break;
             case "UnsignedRightShiftAssignment":
               sb.Append(">>>=");
