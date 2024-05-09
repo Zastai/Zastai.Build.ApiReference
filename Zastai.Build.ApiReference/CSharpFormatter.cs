@@ -138,7 +138,7 @@ internal class CSharpFormatter : CodeFormatter {
     return sb.ToString();
   }
 
-  protected override string EnumField(FieldDefinition fd, int indent) {
+  protected override string EnumField(FieldDefinition fd, int indent, bool useCharacters) {
     var sb = new StringBuilder();
     sb.Append(' ', indent);
     if (!fd.IsPublic) {
@@ -146,7 +146,29 @@ internal class CSharpFormatter : CodeFormatter {
     }
     sb.Append(fd.Name);
     if (fd.IsLiteral) {
-      sb.Append(" = ").Append(fd.HasConstant ? this.Value(null, fd.Constant) : " /* constant value missing */");
+      sb.Append(" = ");
+      if (!fd.HasConstant) {
+        sb.Append("/* constant value missing */");
+      }
+      // We currently only expect ushort values when using characters
+      else if (useCharacters && fd.Constant is ushort value) {
+        sb.Append(this.Literal((char) value));
+      }
+      else {
+        // We expect only integral values, and we don't want any casts, or even any suffixes (because either they're all int, or the
+        // specific integer type is listed on the enum as a base type, making the interpretation unambiguous).
+        sb.Append(fd.Constant switch {
+          byte u8 => u8.ToString(CultureInfo.InvariantCulture),
+          int i32 => i32.ToString(CultureInfo.InvariantCulture),
+          long i64 => i64.ToString(CultureInfo.InvariantCulture),
+          sbyte i8 => i8.ToString(CultureInfo.InvariantCulture),
+          short i16 => i16.ToString(CultureInfo.InvariantCulture),
+          uint u32 => u32.ToString(CultureInfo.InvariantCulture),
+          ulong u64 => u64.ToString(CultureInfo.InvariantCulture),
+          ushort u16 => u16.ToString(CultureInfo.InvariantCulture),
+          _ => "/* unexpected field type */ " + this.Value(null, fd.Constant)
+        });
+      }
     }
     else {
       sb.Append(" /* not a literal */");
@@ -1166,16 +1188,15 @@ internal class CSharpFormatter : CodeFormatter {
           baseType = null;
         }
       }
-      if (baseType is null && td.IsEnum) {
-        // Look for the special-named 'value__' field and use its type
-        if (td.HasFields) {
-          foreach (var fd in td.Fields) {
-            if (fd.IsSpecialName && fd.Name == "value__") {
-              // If it's Int32, leave it off
-              if (fd.FieldType != fd.Module.TypeSystem.Int32) {
-                baseType = fd.FieldType;
-              }
+      // For an enum, look for the special-named 'value__' field and use its type as the base type.
+      if (baseType is null && td is { IsEnum: true, HasFields: true }) {
+        foreach (var fd in td.Fields) {
+          if (fd.IsSpecialName && fd.Name == "value__") {
+            // If it's Int32, leave it off
+            if (fd.FieldType != fd.Module.TypeSystem.Int32) {
+              baseType = fd.FieldType;
             }
+            break;
           }
         }
       }

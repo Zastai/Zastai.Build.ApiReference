@@ -95,7 +95,7 @@ internal abstract partial class CodeFormatter {
     }
   }
 
-  protected abstract string EnumField(FieldDefinition fd, int indent);
+  protected abstract string EnumField(FieldDefinition fd, int indent, bool useCharacters);
 
   protected abstract string EnumValue(TypeDefinition enumType, string name);
 
@@ -183,14 +183,41 @@ internal abstract partial class CodeFormatter {
     }
     if (td.IsEnum) {
       yield return null;
+      var useCharacters = true;
+      // First pass: Determine whether this enum is char-based (i.e. all values reasonably represented as characters)
       foreach (var fd in fields.Values) {
-        if (fd.IsSpecialName) { // skip value__
+        // Skip anything that is not an actual enum constant field.
+        if (fd.IsSpecialName || !fd.HasConstant || !fd.IsLiteral) {
+          continue;
+        }
+        // Only enums with 'ushort' as base type are currently considered candidates for character interpretation.
+        if (fd.Constant is not ushort constant) {
+          useCharacters = false;
+          break;
+        }
+        var c = (char) constant;
+        // FIXME: Do we want to include the Number category too?
+        if (char.IsLetterOrDigit(c) || char.IsPunctuation(c) || char.IsSymbol(c)) {
+          continue;
+        }
+        // Specific other values we allow. This specifically does not include "uncommon" escapes (\a, \b, \f and \v).
+        if (" \0\n\r\t".IndexOf(c) >= 0) {
+          continue;
+        }
+        // Anything else is Bad(tm).
+        useCharacters = false;
+        break;
+      }
+      // Second pass
+      foreach (var fd in fields.Values) {
+        if (fd.IsSpecialName) {
+          // skip value__
           continue;
         }
         foreach (var line in this.CustomAttributes(fd, indent)) {
           yield return line;
         }
-        yield return this.EnumField(fd, indent);
+        yield return this.EnumField(fd, indent, useCharacters);
       }
     }
     else {
@@ -522,7 +549,8 @@ internal abstract partial class CodeFormatter {
   protected abstract string TypeOf(TypeReference tr);
 
   protected virtual string Value(TypeReference? type, object? value) {
-    if (value is not null && type is { IsValueType: true }) { // Check for enum values
+    if (value is not null && type is { IsValueType: true }) {
+      // Check for enum values
       var enumType = type;
       if (type.TryUnwrapNullable(out var unwrapped)) {
         enumType = unwrapped;
@@ -535,7 +563,7 @@ internal abstract partial class CodeFormatter {
         if (td.HasCustomAttributes) {
           foreach (var ca in td.CustomAttributes) {
             var at = ca.AttributeType;
-            if (at.Scope == at.Module.TypeSystem.CoreLibrary && at.Namespace == "System" && at.Name == "FlagsAttribute") {
+            if (at.Scope == at.Module.TypeSystem.CoreLibrary && at is { Namespace: "System", Name: "FlagsAttribute" }) {
               flags = true;
               break;
             }
