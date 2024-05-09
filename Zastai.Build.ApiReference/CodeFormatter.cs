@@ -264,6 +264,8 @@ internal abstract partial class CodeFormatter {
 
   protected abstract string Literal(byte value);
 
+  protected abstract string Literal(char value);
+
   protected abstract string Literal(decimal value);
 
   protected abstract string Literal(double value);
@@ -578,41 +580,26 @@ internal abstract partial class CodeFormatter {
         return this.Cast(td, this.Value(null, value));
       }
     }
-    switch (value) {
-      case null:
-        return this.Null();
-      case TypeReference tr:
-        return this.TypeOf(tr);
-      case bool b:
-        return this.Literal(b);
-      case byte b:
-        return this.Literal(b);
-      case decimal d:
-        return this.Literal(d);
-      case double d:
-        return this.Literal(d);
-      case float f:
-        return this.Literal(f);
-      case int i:
-        return this.Literal(i);
-      case long l:
-        return this.Literal(l);
-      case sbyte sb:
-        return this.Literal(sb);
-      case short s:
-        return this.Literal(s);
-      case string s:
-        return this.Literal(s);
-      case uint ui:
-        return this.Literal(ui);
-      case ulong ul:
-        return this.Literal(ul);
-      case ushort us:
-        return this.Literal(us);
-      default:
-        // Assume everything else matches its ToString() - even though there's no way to tell it to use an invariant form
-        return value.ToString() ?? "/* non-null object with null string form */";
-    }
+    return value switch {
+      null => this.Null(),
+      TypeReference tr => this.TypeOf(tr),
+      bool b => this.Literal(b),
+      byte b => this.Literal(b),
+      char c => this.Literal(c),
+      decimal d => this.Literal(d),
+      double d => this.Literal(d),
+      float f => this.Literal(f),
+      int i => this.Literal(i),
+      long l => this.Literal(l),
+      sbyte sb => this.Literal(sb),
+      short s => this.Literal(s),
+      string s => this.Literal(s),
+      uint ui => this.Literal(ui),
+      ulong ul => this.Literal(ul),
+      ushort us => this.Literal(us),
+      // Assume everything else matches its ToString() - even though there's no way to tell it to use an invariant form
+      _ => value.ToString() ?? "/* non-null object with null string form */"
+    };
   }
 
 }
