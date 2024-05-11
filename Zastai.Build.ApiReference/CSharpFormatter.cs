@@ -259,7 +259,7 @@ internal class CSharpFormatter : CodeFormatter {
     if (fd.IsLiteral || isDecimalConstant) {
       sb.Append(" = ");
       if (fd.IsLiteral) {
-        sb.Append(fd.HasConstant ? this.Value(null, fd.Constant) : "/* constant value missing */");
+        sb.Append(fd.HasConstant ? this.Value(fd.FieldType, fd.Constant) : "/* constant value missing */");
       }
       else if (decimalConstantValue.HasValue) {
         sb.Append(this.Literal(decimalConstantValue.Value));

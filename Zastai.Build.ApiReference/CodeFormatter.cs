@@ -631,24 +631,44 @@ internal abstract partial class CodeFormatter {
           }
           sortedValues.Add(fd.Name, fd);
         }
-        var values = new List<string>();
+        var values = new List<(ulong Flags, string Name)>();
         if (flags) {
           var flagsValue = value.ToULong();
           var remainingFlags = flagsValue;
+          var discardFlags = new HashSet<ulong>();
           foreach (var enumValue in sortedValues.Values) {
             var valueFlags = enumValue.Constant.ToULong();
             // FIXME: Should we include fields with value 0?
             if ((flagsValue & valueFlags) != valueFlags) {
               continue;
             }
-            values.Add(this.EnumValue(td, enumValue.Name));
+            var addValue = true;
+            // If there is already a value that is identical to or a superset of this one, ignore it.
+            // Conversely, if this value is a superset of any existing values, discard those.
+            foreach (var existing in values) {
+              if (valueFlags == existing.Flags) {
+                addValue = false;
+                continue;
+              }
+              var commonFlags = existing.Flags & valueFlags;
+              if (commonFlags == existing.Flags) {
+                discardFlags.Add(existing.Flags);
+              }
+              else if (commonFlags == valueFlags) {
+                addValue = false;
+              }
+            }
+            if (addValue) {
+              values.Add((valueFlags, enumValue.Name));
+            }
             remainingFlags &= ~valueFlags;
           }
+          var textValues = values.Where(e => !discardFlags.Contains(e.Flags)).Select(e => this.EnumValue(td, e.Name)).ToList();
           if (remainingFlags != 0) {
             // Unhandled flags remain - use a forced cast
-            values.Add(this.Cast(td, this.Value(null, remainingFlags)));
+            textValues.Add(this.Cast(td, this.Value(null, remainingFlags)));
           }
-          return string.Join($" {this.Or()} ", values);
+          return string.Join($" {this.Or()} ", textValues);
         }
         // Simple enum value
         foreach (var enumValue in td.Fields) {
