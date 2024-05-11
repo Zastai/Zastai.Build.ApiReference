@@ -61,6 +61,22 @@ be created as part of the processing.
 
 Defaults to `false`.
 
+### EnableCharEnumHandling
+
+Enables special enum handing; if set to `true`, when an enum uses
+`ushort` as base type and all values are reasonably representable as
+characters, then character literals will be used.
+
+Defaults to `false`.
+
+### EnableHexEnumHandling
+
+Enables special enum handing; if set to `true`, when an enum is marked as
+`[Flags]` and all values either have a single bit or a single set of
+contiguous bits set, then hexadecimal literal will be used.
+
+Defaults to `false`.
+
 ### GenerateApiReference
 
 Determines whether API Reference sources will be generated for each

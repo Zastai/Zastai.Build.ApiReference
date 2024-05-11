@@ -14,6 +14,10 @@ internal abstract partial class CodeFormatter {
 
   private readonly ISet<string> _attributesToInclude = new HashSet<string>();
 
+  private bool _charEnumsEnabled = false;
+
+  private bool _hexEnumsEnabled = false;
+
   // FIXME: IReadOnlySet would be better, but is not available on .NET Framework.
   private ISet<string>? _runtimeFeatures;
 
@@ -94,6 +98,10 @@ internal abstract partial class CodeFormatter {
       }
     }
   }
+
+  public void EnableCharEnums(bool yes) => this._charEnumsEnabled = yes;
+
+  public void EnableHexEnums(bool yes) => this._hexEnumsEnabled = yes;
 
   protected abstract string EnumField(FieldDefinition fd, int indent, EnumFieldValueMode mode);
 
@@ -184,10 +192,10 @@ internal abstract partial class CodeFormatter {
     if (td.IsEnum) {
       yield return null;
       // First pass: determine the processing mode for the values.
-      var canUseCharacters = true;
+      var canUseCharacters = this._charEnumsEnabled;
       var canUseHex = false;
       // Currently, only use hex mode for [Flags] enums.
-      if (td.HasCustomAttributes) {
+      if (this._hexEnumsEnabled && td.HasCustomAttributes) {
         foreach (var ca in td.CustomAttributes) {
           var at = ca.AttributeType;
           if (at.Scope == at.Module.TypeSystem.CoreLibrary && at is { Namespace: "System", Name: "FlagsAttribute" }) {

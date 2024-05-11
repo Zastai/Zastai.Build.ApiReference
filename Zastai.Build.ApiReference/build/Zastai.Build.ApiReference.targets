@@ -111,6 +111,20 @@
       <_ApiReferenceCommandLineOptions Include="-r &quot;%(_DirectoriesContainingReferencedAssemblies.Identity)&quot;" />
     </ItemGroup>
 
+    <!-- Enum Handling -->
+    <ItemGroup>
+      <_ApiReferenceEnumHandling Include="char" Condition=" '$(EnableCharEnumHandling)' == 'true' " />
+      <_ApiReferenceEnumHandling Include="hex-flags" Condition=" '$(EnableHexEnumHandling)' == 'true' " />
+    </ItemGroup>
+
+    <PropertyGroup>
+      <_ApiReferenceEnumHandling>@(_ApiReferenceEnumHandling, ',')</_ApiReferenceEnumHandling>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <_ApiReferenceCommandLineOptions Include="-eh &quot;$(_ApiReferenceEnumHandling)&quot;" />
+    </ItemGroup>
+
     <MakeDir Directories="$([System.IO.Path]::GetDirectoryName($([System.IO.Path]::GetFullPath('$(ApiReferenceOutputPath)'))))"
              Condition=" '$(CreateApiReferenceOutputDir)' == 'true' "/>
 
