@@ -416,6 +416,35 @@ internal class CSharpFormatter : CodeFormatter {
 
   protected override string Literal(byte value) => "(byte) " + value.ToString(CultureInfo.InvariantCulture);
 
+  protected override string Literal(char value) {
+    switch (value) {
+      case '\0':
+        return "'\\0'";
+      case '\'':
+        return "'\\''";
+      case '\a':
+        return "'\\a'";
+      case '\b':
+        return "'\\b'";
+      case '\f':
+        return "'\\f'";
+      case '\n':
+        return "'\\n'";
+      case '\r':
+        return "'\\r'";
+      case '\t':
+        return "'\\t'";
+      case '\v':
+        return "'\\v'";
+    }
+    if (char.IsLetterOrDigit(value) || char.IsNumber(value) || char.IsPunctuation(value) || char.IsSymbol(value) || value == ' ') {
+      return $"'{value}'";
+    }
+    // Anything else is "unprintable" and will get its hex form.
+    var numericValue = (ushort) value;
+    return numericValue < 0x100 ? $"'\\x{numericValue:X2}'" : $"'\\u{numericValue:X4}'";
+  }
+
   protected override string Literal(decimal value) => value switch {
     decimal.MaxValue => "decimal.MaxValue",
     decimal.MinValue => "decimal.MinValue",
