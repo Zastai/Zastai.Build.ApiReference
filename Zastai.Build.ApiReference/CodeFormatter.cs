@@ -95,7 +95,7 @@ internal abstract partial class CodeFormatter {
     }
   }
 
-  protected abstract string EnumField(FieldDefinition fd, int indent, bool useCharacters);
+  protected abstract string EnumField(FieldDefinition fd, int indent, EnumFieldValueMode mode);
 
   protected abstract string EnumValue(TypeDefinition enumType, string name);
 
@@ -183,30 +183,77 @@ internal abstract partial class CodeFormatter {
     }
     if (td.IsEnum) {
       yield return null;
-      var useCharacters = true;
-      // First pass: Determine whether this enum is char-based (i.e. all values reasonably represented as characters)
+      // First pass: determine the processing mode for the values.
+      var canUseCharacters = true;
+      var canUseHex = false;
+      // Currently, only use hex mode for [Flags] enums.
+      if (td.HasCustomAttributes) {
+        foreach (var ca in td.CustomAttributes) {
+          var at = ca.AttributeType;
+          if (at.Scope == at.Module.TypeSystem.CoreLibrary && at is { Namespace: "System", Name: "FlagsAttribute" }) {
+            canUseHex = true;
+            break;
+          }
+        }
+      }
       foreach (var fd in fields.Values) {
         // Skip anything that is not an actual enum constant field.
         if (fd.IsSpecialName || !fd.HasConstant || !fd.IsLiteral) {
           continue;
         }
-        // Only enums with 'ushort' as base type are currently considered candidates for character interpretation.
-        if (fd.Constant is not ushort constant) {
-          useCharacters = false;
-          break;
+        if (canUseCharacters) {
+          // Only enums with 'ushort' as base type are currently considered candidates for character interpretation.
+          if (fd.Constant is not ushort constant) {
+            canUseCharacters = false;
+          }
+          else {
+            var c = (char) constant;
+            // FIXME: Do we want to include the Number category too?
+            if (!char.IsLetterOrDigit(c) && !char.IsPunctuation(c) && !char.IsSymbol(c)) {
+              // Specific other values we allow. This specifically does not include "uncommon" escapes (\a, \b, \f and \v).
+              if (" \0\n\r\t".IndexOf(c) < 0) {
+                // Anything else is Bad(tm).
+                canUseCharacters = false;
+              }
+            }
+          }
         }
-        var c = (char) constant;
-        // FIXME: Do we want to include the Number category too?
-        if (char.IsLetterOrDigit(c) || char.IsPunctuation(c) || char.IsSymbol(c)) {
-          continue;
+        if (canUseHex) {
+          // We want to allow zero, plus either values with a single bit set:
+          //   0x0001, 0x0200, 0x8000
+          // Or with a contiguous set of bits set (i.e. a "mask"):
+          //   0x00FF, 0x03F0, 0x0F80
+          // It seems like the easiest (if not the fastest) way to detect these, is to format as binary, trim trailing zeroes and
+          // then check whether any zeroes remain.
+          // Using binary literals would also make sense for these cases, but there is no "nice" way to format those (the 'B'
+          // specifier for Format() is new in .NET 8), and binary literals don't seem to be in super common use anyway.
+          try {
+            var binary = fd.Constant switch {
+              byte u8 => Convert.ToString(u8, 2),
+              int i32 => Convert.ToString(i32, 2),
+              long i64 => Convert.ToString(i64, 2),
+              sbyte i8 => Convert.ToString(i8, 2),
+              short i16 => Convert.ToString(i16, 2),
+              uint u32 => Convert.ToString(u32, 2),
+              ulong u64 => Convert.ToString(unchecked((long) u64), 2),
+              ushort u16 => Convert.ToString(u16, 2),
+              _ => ""
+            };
+            if (binary.Length == 0 || (binary.TrimEnd('0').Contains('0') && binary != "0")) {
+              canUseHex = false;
+            }
+          }
+          catch {
+            canUseHex = false;
+          }
         }
-        // Specific other values we allow. This specifically does not include "uncommon" escapes (\a, \b, \f and \v).
-        if (" \0\n\r\t".IndexOf(c) >= 0) {
-          continue;
-        }
-        // Anything else is Bad(tm).
-        useCharacters = false;
-        break;
+      }
+      var mode = EnumFieldValueMode.Integer;
+      if (canUseCharacters) {
+        mode = EnumFieldValueMode.Character;
+      }
+      if (canUseHex) {
+        mode = EnumFieldValueMode.Hexadecimal;
       }
       // Second pass
       foreach (var fd in fields.Values) {
@@ -217,7 +264,7 @@ internal abstract partial class CodeFormatter {
         foreach (var line in this.CustomAttributes(fd, indent)) {
           yield return line;
         }
-        yield return this.EnumField(fd, indent, useCharacters);
+        yield return this.EnumField(fd, indent, mode);
       }
     }
     else {
