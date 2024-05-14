@@ -14,6 +14,10 @@ internal abstract partial class CodeFormatter {
 
   private readonly ISet<string> _attributesToInclude = new HashSet<string>();
 
+  private bool _charEnumsEnabled = false;
+
+  private bool _hexEnumsEnabled = false;
+
   // FIXME: IReadOnlySet would be better, but is not available on .NET Framework.
   private ISet<string>? _runtimeFeatures;
 
@@ -95,7 +99,11 @@ internal abstract partial class CodeFormatter {
     }
   }
 
-  protected abstract string EnumField(FieldDefinition fd, int indent);
+  public void EnableCharEnums(bool yes) => this._charEnumsEnabled = yes;
+
+  public void EnableHexEnums(bool yes) => this._hexEnumsEnabled = yes;
+
+  protected abstract string EnumField(FieldDefinition fd, int indent, EnumFieldValueMode mode);
 
   protected abstract string EnumValue(TypeDefinition enumType, string name);
 
@@ -183,14 +191,88 @@ internal abstract partial class CodeFormatter {
     }
     if (td.IsEnum) {
       yield return null;
+      // First pass: determine the processing mode for the values.
+      var canUseCharacters = this._charEnumsEnabled;
+      var canUseHex = false;
+      // Currently, only use hex mode for [Flags] enums.
+      if (this._hexEnumsEnabled && td.HasCustomAttributes) {
+        foreach (var ca in td.CustomAttributes) {
+          var at = ca.AttributeType;
+          if (at.Scope == at.Module.TypeSystem.CoreLibrary && at is { Namespace: "System", Name: "FlagsAttribute" }) {
+            canUseHex = true;
+            break;
+          }
+        }
+      }
       foreach (var fd in fields.Values) {
-        if (fd.IsSpecialName) { // skip value__
+        // Skip anything that is not an actual enum constant field.
+        if (fd.IsSpecialName || !fd.HasConstant || !fd.IsLiteral) {
+          continue;
+        }
+        if (canUseCharacters) {
+          // Only enums with 'ushort' as base type are currently considered candidates for character interpretation.
+          if (fd.Constant is not ushort constant) {
+            canUseCharacters = false;
+          }
+          else {
+            var c = (char) constant;
+            // FIXME: Do we want to include the Number category too?
+            if (!char.IsLetterOrDigit(c) && !char.IsPunctuation(c) && !char.IsSymbol(c)) {
+              // Specific other values we allow. This specifically does not include "uncommon" escapes (\a, \b, \f and \v).
+              if (" \0\n\r\t".IndexOf(c) < 0) {
+                // Anything else is Bad(tm).
+                canUseCharacters = false;
+              }
+            }
+          }
+        }
+        if (canUseHex) {
+          // We want to allow zero, plus either values with a single bit set:
+          //   0x0001, 0x0200, 0x8000
+          // Or with a contiguous set of bits set (i.e. a "mask"):
+          //   0x00FF, 0x03F0, 0x0F80
+          // It seems like the easiest (if not the fastest) way to detect these, is to format as binary, trim trailing zeroes and
+          // then check whether any zeroes remain.
+          // Using binary literals would also make sense for these cases, but there is no "nice" way to format those (the 'B'
+          // specifier for Format() is new in .NET 8), and binary literals don't seem to be in super common use anyway.
+          try {
+            var binary = fd.Constant switch {
+              byte u8 => Convert.ToString(u8, 2),
+              int i32 => Convert.ToString(i32, 2),
+              long i64 => Convert.ToString(i64, 2),
+              sbyte i8 => Convert.ToString(i8, 2),
+              short i16 => Convert.ToString(i16, 2),
+              uint u32 => Convert.ToString(u32, 2),
+              ulong u64 => Convert.ToString(unchecked((long) u64), 2),
+              ushort u16 => Convert.ToString(u16, 2),
+              _ => ""
+            };
+            if (binary.Length == 0 || (binary.TrimEnd('0').Contains('0') && binary != "0")) {
+              canUseHex = false;
+            }
+          }
+          catch {
+            canUseHex = false;
+          }
+        }
+      }
+      var mode = EnumFieldValueMode.Integer;
+      if (canUseCharacters) {
+        mode = EnumFieldValueMode.Character;
+      }
+      if (canUseHex) {
+        mode = EnumFieldValueMode.Hexadecimal;
+      }
+      // Second pass
+      foreach (var fd in fields.Values) {
+        if (fd.IsSpecialName) {
+          // skip value__
           continue;
         }
         foreach (var line in this.CustomAttributes(fd, indent)) {
           yield return line;
         }
-        yield return this.EnumField(fd, indent);
+        yield return this.EnumField(fd, indent, mode);
       }
     }
     else {
@@ -522,7 +604,8 @@ internal abstract partial class CodeFormatter {
   protected abstract string TypeOf(TypeReference tr);
 
   protected virtual string Value(TypeReference? type, object? value) {
-    if (value is not null && type is { IsValueType: true }) { // Check for enum values
+    if (value is not null && type is { IsValueType: true }) {
+      // Check for enum values
       var enumType = type;
       if (type.TryUnwrapNullable(out var unwrapped)) {
         enumType = unwrapped;
@@ -535,7 +618,7 @@ internal abstract partial class CodeFormatter {
         if (td.HasCustomAttributes) {
           foreach (var ca in td.CustomAttributes) {
             var at = ca.AttributeType;
-            if (at.Scope == at.Module.TypeSystem.CoreLibrary && at.Namespace == "System" && at.Name == "FlagsAttribute") {
+            if (at.Scope == at.Module.TypeSystem.CoreLibrary && at is { Namespace: "System", Name: "FlagsAttribute" }) {
               flags = true;
               break;
             }
@@ -548,24 +631,44 @@ internal abstract partial class CodeFormatter {
           }
           sortedValues.Add(fd.Name, fd);
         }
-        var values = new List<string>();
+        var values = new List<(ulong Flags, string Name)>();
         if (flags) {
           var flagsValue = value.ToULong();
           var remainingFlags = flagsValue;
+          var discardFlags = new HashSet<ulong>();
           foreach (var enumValue in sortedValues.Values) {
             var valueFlags = enumValue.Constant.ToULong();
             // FIXME: Should we include fields with value 0?
             if ((flagsValue & valueFlags) != valueFlags) {
               continue;
             }
-            values.Add(this.EnumValue(td, enumValue.Name));
+            var addValue = true;
+            // If there is already a value that is identical to or a superset of this one, ignore it.
+            // Conversely, if this value is a superset of any existing values, discard those.
+            foreach (var existing in values) {
+              if (valueFlags == existing.Flags) {
+                addValue = false;
+                continue;
+              }
+              var commonFlags = existing.Flags & valueFlags;
+              if (commonFlags == existing.Flags) {
+                discardFlags.Add(existing.Flags);
+              }
+              else if (commonFlags == valueFlags) {
+                addValue = false;
+              }
+            }
+            if (addValue) {
+              values.Add((valueFlags, enumValue.Name));
+            }
             remainingFlags &= ~valueFlags;
           }
+          var textValues = values.Where(e => !discardFlags.Contains(e.Flags)).Select(e => this.EnumValue(td, e.Name)).ToList();
           if (remainingFlags != 0) {
             // Unhandled flags remain - use a forced cast
-            values.Add(this.Cast(td, this.Value(null, remainingFlags)));
+            textValues.Add(this.Cast(td, this.Value(null, remainingFlags)));
           }
-          return string.Join($" {this.Or()} ", values);
+          return string.Join($" {this.Or()} ", textValues);
         }
         // Simple enum value
         foreach (var enumValue in td.Fields) {

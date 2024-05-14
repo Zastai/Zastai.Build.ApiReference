@@ -1,5 +1,4 @@
 using System.Reflection;
-using System.Runtime.Serialization;
 
 namespace Zastai.Build.ApiReference;
 
@@ -37,21 +36,20 @@ public static class Program {
     if (args.Length < 2 || args.Length % 2 != 0) {
       return Program.Usage();
     }
-
     var assembly = args[0];
     if (!File.Exists(assembly)) {
       Console.Error.WriteLine("Assembly not found: {0}", assembly);
       return 2;
     }
-
     var referenceSource = args[1];
     var outputDir = Path.GetDirectoryName(Path.GetFullPath(referenceSource));
     if (!Directory.Exists(outputDir)) {
       Console.Error.WriteLine("Output folder does not exist: {0}", outputDir);
       return 3;
     }
-
     CodeFormatter? formatter = null;
+    var handleCharEnums = false;
+    var handleHexEnums = false;
     var dependencyPath = new List<string>();
     var includedAttributes = new List<string>();
     var excludedAttributes = new List<string>();
@@ -60,8 +58,26 @@ public static class Program {
         case "-ea":
           excludedAttributes.Add(args[i + 1]);
           break;
+        case "-eh":
+          foreach (var handling in args[i + 1].Split(',', ';')) {
+            switch (handling.Trim().ToLowerInvariant()) {
+              case "char":
+                handleCharEnums = true;
+                break;
+              case "hex-flags":
+                handleHexEnums = true;
+                break;
+              case "":
+                // ignore
+                break;
+              default:
+                Console.Error.WriteLine("Unsupported enum handling: {0}", handling);
+                return 4;
+            }
+          }
+          break;
         case "-f":
-          switch (args[i + 1].ToLowerInvariant()) {
+          switch (args[i + 1].Trim().ToLowerInvariant()) {
             case "c#":
             case "cs":
             case "csharp":
@@ -90,18 +106,15 @@ public static class Program {
           return Program.Usage(4);
       }
     }
-
     // Default to C#
     formatter ??= new CSharpFormatter();
-
     formatter.IncludeCustomAttributes(includedAttributes);
     formatter.ExcludeCustomAttributes(excludedAttributes);
-
+    formatter.EnableCharEnums(handleCharEnums);
+    formatter.EnableHexEnums(handleHexEnums);
     try {
       using var ad = AssemblyDefinition.ReadAssembly(assembly, Program.CreateReaderParameters(assembly, dependencyPath));
-
       using var reference = referenceSource == "-" ? Console.Out : new StreamWriter(File.Create(referenceSource), Encoding.UTF8);
-
       foreach (var line in formatter.FormatPublicApi(ad)) {
         if (line is null) {
           reference.WriteLine();
@@ -128,7 +141,6 @@ public static class Program {
       }
       return 16;
     }
-
     return 0;
   }
 
@@ -139,6 +151,7 @@ public static class Program {
     Console.Out.WriteLine("  -f FORMAT                 Specify the output format (csharp or markdown)");
     Console.Out.WriteLine("  -r DEPENDENCY-DIR         Add a location to search for required references");
     Console.Out.WriteLine("  -ea ATTRIBUTE-TYPE-NAME   Exclude a particular attribute");
+    Console.Out.WriteLine("  -eh ENUM-HANDLING         Activate specific enum handling (comma-separated)");
     Console.Out.WriteLine("  -ia ATTRIBUTE-TYPE-NAME   Include a particular attribute");
     return rc;
   }
