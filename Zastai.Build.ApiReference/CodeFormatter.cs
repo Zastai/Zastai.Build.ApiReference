@@ -495,9 +495,6 @@ internal abstract partial class CodeFormatter {
         }
       }
     }
-    if (properties.Count == 0) {
-      yield break;
-    }
     foreach (var overloads in parametrizedProperties.Values) {
       foreach (var pd in overloads.Values) {
         yield return null;
