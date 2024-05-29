@@ -471,39 +471,38 @@ internal abstract partial class CodeFormatter {
     if (!td.HasProperties) {
       yield break;
     }
-    var parametrizedProperties = new SortedDictionary<string, SortedDictionary<string, PropertyDefinition>>();
-    var properties = new SortedDictionary<string, PropertyDefinition>();
+    var parametrizedProperties = new SortedDictionary<string, SortedSet<PropertyDefinition>>();
+    var properties = new SortedSet<PropertyDefinition>();
     foreach (var property in td.Properties) {
       if ((property.GetMethod?.IsPublicApi() ?? false) || (property.SetMethod?.IsPublicApi() ?? false)) {
         if (property.HasParameters) {
           if (!parametrizedProperties.TryGetValue(property.Name, out var overloads)) {
-            parametrizedProperties.Add(property.Name, overloads = new SortedDictionary<string, PropertyDefinition>());
+            parametrizedProperties.Add(property.Name, overloads = new SortedSet<PropertyDefinition>(this));
           }
           // This ends up sorting on the return type first; given that this is probably an indexer (what other properties have
           // parameters?), that should be fine. Alternatively, we could stringify the parameters only.
-          var signature = property.ToString();
-          if (overloads.TryGetValue(signature, out var previousProperty)) {
-            Trace.Fail(signature, $"Multiply defined property; previous was {previousProperty}.");
+          if (overloads.TryGetValue(property, out var previousProperty)) {
+            Trace.Fail(property.ToString(), $"Multiply defined property; previous was {previousProperty}.");
           }
-          overloads.Add(signature, property);
+          overloads.Add(property);
         }
         else {
-          if (properties.TryGetValue(property.Name, out var previousProperty)) {
+          if (properties.TryGetValue(property, out var previousProperty)) {
             Trace.Fail(property.ToString(), $"Multiply defined property in {td}; previous was {previousProperty}.");
           }
-          properties.Add(property.Name, property);
+          properties.Add(property);
         }
       }
     }
     foreach (var overloads in parametrizedProperties.Values) {
-      foreach (var pd in overloads.Values) {
+      foreach (var pd in overloads) {
         yield return null;
         foreach (var line in this.Property(pd, indent)) {
           yield return line;
         }
       }
     }
-    foreach (var pd in properties.Values) {
+    foreach (var pd in properties) {
       yield return null;
       foreach (var line in this.Property(pd, indent)) {
         yield return line;
@@ -512,6 +511,8 @@ internal abstract partial class CodeFormatter {
   }
 
   protected abstract IEnumerable<string?> Property(PropertyDefinition pd, int indent);
+
+  protected abstract string PropertyName(PropertyDefinition pd);
 
   protected abstract bool IsHandledBySyntax(ICustomAttribute ca);
 

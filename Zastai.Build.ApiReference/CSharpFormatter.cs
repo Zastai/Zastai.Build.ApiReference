@@ -1082,13 +1082,7 @@ internal class CSharpFormatter : CodeFormatter {
         sb.Append("required ");
       }
       sb.Append(this.TypeName(pd.PropertyType, pd)).Append(' ');
-      // FIXME: Or should this only be done when the type has [System.Reflection.DefaultMemberAttribute("Item")]?
-      if (pd.HasParameters && pd.Name == "Item") {
-        sb.Append("this");
-      }
-      else {
-        sb.Append(pd.Name);
-      }
+      sb.Append(this.PropertyName(pd));
       sb.Append(this.Parameters(pd)).Append(" {");
       yield return sb.ToString();
     }
@@ -1138,6 +1132,11 @@ internal class CSharpFormatter : CodeFormatter {
     }
     sb.Append(';');
     yield return sb.ToString();
+  }
+
+  protected override string PropertyName(PropertyDefinition pd) {
+    // FIXME: Or should this only be done when the type has [System.Reflection.DefaultMemberAttribute("Item")]?
+    return pd is { HasParameters: true, Name: "Item" } ? "this" : pd.Name;
   }
 
   protected override IEnumerable<string?> Type(TypeDefinition td, int indent) {
