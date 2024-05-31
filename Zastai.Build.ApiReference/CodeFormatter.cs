@@ -472,7 +472,7 @@ internal abstract partial class CodeFormatter {
       yield break;
     }
     var parametrizedProperties = new SortedDictionary<string, SortedSet<PropertyDefinition>>();
-    var properties = new SortedSet<PropertyDefinition>();
+    var properties = new SortedSet<PropertyDefinition>(this);
     foreach (var property in td.Properties) {
       if ((property.GetMethod?.IsPublicApi() ?? false) || (property.SetMethod?.IsPublicApi() ?? false)) {
         if (property.HasParameters) {
