@@ -1,7 +1,10 @@
-﻿namespace Zastai.Build.ApiReference;
+namespace Zastai.Build.ApiReference;
 
 /// <summary>The way in which the value of an enum field should be represented.</summary>
 public enum EnumFieldValueMode {
+
+  /// <summary>Use binary literals.</summary>
+  Binary,
 
   /// <summary>Use character literals.</summary>
   Character,

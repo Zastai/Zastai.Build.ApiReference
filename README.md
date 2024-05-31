@@ -61,6 +61,13 @@ be created as part of the processing.
 
 Defaults to `false`.
 
+### EnableBinaryEnumHandling
+
+Enables special enum handing; if set to `true`, when an enum is marked as
+`[Flags]`, binary literals will be used for its values.
+
+Defaults to `false`.
+
 ### EnableCharEnumHandling
 
 Enables special enum handing; if set to `true`, when an enum uses
@@ -73,7 +80,9 @@ Defaults to `false`.
 
 Enables special enum handing; if set to `true`, when an enum is marked as
 `[Flags]` and all values either have a single bit or a single set of
-contiguous bits set, then hexadecimal literal will be used.
+contiguous bits set, hexadecimal literals will be used for its values.
+
+This has no effect when `EnableBinaryEnumHandling` is also set.
 
 Defaults to `false`.
 

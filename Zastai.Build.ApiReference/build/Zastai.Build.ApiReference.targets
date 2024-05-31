@@ -113,8 +113,9 @@
 
     <!-- Enum Handling -->
     <ItemGroup>
+      <_ApiReferenceEnumHandling Include="binary" Condition=" '$(EnableBinaryEnumHandling)' == 'true' " />
       <_ApiReferenceEnumHandling Include="char" Condition=" '$(EnableCharEnumHandling)' == 'true' " />
-      <_ApiReferenceEnumHandling Include="hex-flags" Condition=" '$(EnableHexEnumHandling)' == 'true' " />
+      <_ApiReferenceEnumHandling Include="hex" Condition=" '$(EnableHexEnumHandling)' == 'true' " />
     </ItemGroup>
 
     <PropertyGroup>

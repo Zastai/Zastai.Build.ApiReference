@@ -1,4 +1,4 @@
-﻿using System.Linq;
+using System.Linq;
 
 namespace Zastai.Build.ApiReference;
 
@@ -13,6 +13,8 @@ internal abstract partial class CodeFormatter {
   private readonly ISet<string> _attributesToExclude = new HashSet<string>();
 
   private readonly ISet<string> _attributesToInclude = new HashSet<string>();
+
+  private bool _binaryEnumsEnabled = false;
 
   private bool _charEnumsEnabled = false;
 
@@ -98,6 +100,8 @@ internal abstract partial class CodeFormatter {
       }
     }
   }
+
+  public void EnableBinaryEnums(bool yes) => this._binaryEnumsEnabled = yes;
 
   public void EnableCharEnums(bool yes) => this._charEnumsEnabled = yes;
 
@@ -192,17 +196,25 @@ internal abstract partial class CodeFormatter {
     if (td.IsEnum) {
       yield return null;
       // First pass: determine the processing mode for the values.
+      var canUseBinary = false;
       var canUseCharacters = this._charEnumsEnabled;
       var canUseHex = false;
-      // Currently, only use hex mode for [Flags] enums.
-      if (this._hexEnumsEnabled && td.HasCustomAttributes) {
+      // Currently, only use binary or hex mode for [Flags] enums.
+      if ((this._binaryEnumsEnabled || this._hexEnumsEnabled) && td.HasCustomAttributes) {
         foreach (var ca in td.CustomAttributes) {
           var at = ca.AttributeType;
           if (at.Scope == at.Module.TypeSystem.CoreLibrary && at is { Namespace: "System", Name: "FlagsAttribute" }) {
-            canUseHex = true;
+            // Character values never makse sense for [Flags] enums.
+            canUseCharacters = false;
+            canUseBinary = this._binaryEnumsEnabled;
+            canUseHex = this._hexEnumsEnabled;
             break;
           }
         }
+      }
+      // If both binary and hex are possible and requested, choose binary.
+      if (canUseBinary && canUseHex) {
+        canUseHex = false;
       }
       foreach (var fd in fields.Values) {
         // Skip anything that is not an actual enum constant field.
@@ -226,6 +238,28 @@ internal abstract partial class CodeFormatter {
             }
           }
         }
+        if (canUseBinary) {
+          try {
+            switch (fd.Constant) {
+              case byte:
+              case int:
+              case long:
+              case sbyte:
+              case short:
+              case uint:
+              case ulong:
+              case ushort:
+                // ok, integral type
+                break;
+              default:
+                canUseBinary = false;
+                break;
+            }
+          }
+          catch {
+            canUseBinary = false;
+          }
+        }
         if (canUseHex) {
           // We want to allow zero, plus either values with a single bit set:
           //   0x0001, 0x0200, 0x8000
@@ -233,8 +267,6 @@ internal abstract partial class CodeFormatter {
           //   0x00FF, 0x03F0, 0x0F80
           // It seems like the easiest (if not the fastest) way to detect these, is to format as binary, trim trailing zeroes and
           // then check whether any zeroes remain.
-          // Using binary literals would also make sense for these cases, but there is no "nice" way to format those (the 'B'
-          // specifier for Format() is new in .NET 8), and binary literals don't seem to be in super common use anyway.
           try {
             var binary = fd.Constant switch {
               byte u8 => Convert.ToString(u8, 2),
@@ -257,10 +289,13 @@ internal abstract partial class CodeFormatter {
         }
       }
       var mode = EnumFieldValueMode.Integer;
-      if (canUseCharacters) {
+      if (canUseBinary) {
+        mode = EnumFieldValueMode.Binary;
+      }
+      else if (canUseCharacters) {
         mode = EnumFieldValueMode.Character;
       }
-      if (canUseHex) {
+      else if (canUseHex) {
         mode = EnumFieldValueMode.Hexadecimal;
       }
       // Second pass

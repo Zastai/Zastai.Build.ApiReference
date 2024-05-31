@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.Linq;
 using System.Runtime.CompilerServices;
 
@@ -152,6 +152,43 @@ internal class CSharpFormatter : CodeFormatter {
       }
       else {
         switch (mode) {
+          case EnumFieldValueMode.Binary: {
+            var text = fd.Constant switch {
+#if NET8_0_OR_GREATER
+              byte u8 => u8.ToString("B8"),
+              int i32 => i32.ToString("B32"),
+              long i64 => i64.ToString("B64"),
+              sbyte i8 => i8.ToString("B8"),
+              short i16 => i16.ToString("B16"),
+              uint u32 => u32.ToString("B32"),
+              ulong u64 => u64.ToString("B64"),
+              ushort u16 => u16.ToString("B16"),
+#else
+              byte u8 => Convert.ToString(u8, 2).PadLeft(8, '0'),
+              int i32 => Convert.ToString(i32, 2).PadLeft(32, '0'),
+              long i64 => Convert.ToString(i64, 2).PadLeft(64, '0'),
+              sbyte i8 => Convert.ToString(i8, 2).PadLeft(8, '0'),
+              short i16 => Convert.ToString(i16, 2).PadLeft(16, '0'),
+              uint u32 => Convert.ToString(u32, 2).PadLeft(32, '0'),
+              ulong u64 => Convert.ToString((long) u64, 2).PadLeft(64, '0'),
+              ushort u16 => Convert.ToString(u16, 2).PadLeft(16, '0'),
+#endif
+              _ => ""
+            };
+            if (text.Length == 0) {
+              sb.Append("/* unexpected field type */ " + this.Value(null, fd.Constant));
+            }
+            else {
+              sb.Append("0b");
+              for (var pos = 0; pos < text.Length; pos += 4) {
+                if (pos > 0) {
+                  sb.Append('_');
+                }
+                sb.Append(text, pos, 4);
+              }
+            }
+            break;
+          }
           case EnumFieldValueMode.Character:
             if (fd.Constant is ushort value) {
               sb.Append(this.Literal((char) value));
