@@ -48,6 +48,7 @@ public static class Program {
       return 3;
     }
     CodeFormatter? formatter = null;
+    var handleBinaryEnums = false;
     var handleCharEnums = false;
     var handleHexEnums = false;
     var dependencyPath = new List<string>();
@@ -61,9 +62,13 @@ public static class Program {
         case "-eh":
           foreach (var handling in args[i + 1].Split(',', ';')) {
             switch (handling.Trim().ToLowerInvariant()) {
+              case "binary":
+                handleBinaryEnums = true;
+                break;
               case "char":
                 handleCharEnums = true;
                 break;
+              case "hex":
               case "hex-flags":
                 handleHexEnums = true;
                 break;
@@ -110,6 +115,7 @@ public static class Program {
     formatter ??= new CSharpFormatter();
     formatter.IncludeCustomAttributes(includedAttributes);
     formatter.ExcludeCustomAttributes(excludedAttributes);
+    formatter.EnableBinaryEnums(handleBinaryEnums);
     formatter.EnableCharEnums(handleCharEnums);
     formatter.EnableHexEnums(handleHexEnums);
     try {
