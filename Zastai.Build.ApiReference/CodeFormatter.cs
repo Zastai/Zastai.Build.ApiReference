@@ -14,11 +14,11 @@ internal abstract partial class CodeFormatter {
 
   private readonly ISet<string> _attributesToInclude = new HashSet<string>();
 
-  private bool _binaryEnumsEnabled = false;
+  private bool _binaryEnumsEnabled;
 
-  private bool _charEnumsEnabled = false;
+  private bool _charEnumsEnabled;
 
-  private bool _hexEnumsEnabled = false;
+  private bool _hexEnumsEnabled;
 
   // FIXME: IReadOnlySet would be better, but is not available on .NET Framework.
   private ISet<string>? _runtimeFeatures;
@@ -107,7 +107,7 @@ internal abstract partial class CodeFormatter {
 
   public void EnableHexEnums(bool yes) => this._hexEnumsEnabled = yes;
 
-  protected abstract string EnumField(FieldDefinition fd, int indent, EnumFieldValueMode mode);
+  protected abstract string EnumField(FieldDefinition fd, int indent, EnumFieldValueMode mode, int highestBit);
 
   protected abstract string EnumValue(TypeDefinition enumType, string name);
 
@@ -199,6 +199,7 @@ internal abstract partial class CodeFormatter {
       var canUseBinary = false;
       var canUseCharacters = this._charEnumsEnabled;
       var canUseHex = false;
+      var highestBit = 0;
       // Currently, only use binary or hex mode for [Flags] enums.
       if ((this._binaryEnumsEnabled || this._hexEnumsEnabled) && td.HasCustomAttributes) {
         foreach (var ca in td.CustomAttributes) {
@@ -238,35 +239,7 @@ internal abstract partial class CodeFormatter {
             }
           }
         }
-        if (canUseBinary) {
-          try {
-            switch (fd.Constant) {
-              case byte:
-              case int:
-              case long:
-              case sbyte:
-              case short:
-              case uint:
-              case ulong:
-              case ushort:
-                // ok, integral type
-                break;
-              default:
-                canUseBinary = false;
-                break;
-            }
-          }
-          catch {
-            canUseBinary = false;
-          }
-        }
-        if (canUseHex) {
-          // We want to allow zero, plus either values with a single bit set:
-          //   0x0001, 0x0200, 0x8000
-          // Or with a contiguous set of bits set (i.e. a "mask"):
-          //   0x00FF, 0x03F0, 0x0F80
-          // It seems like the easiest (if not the fastest) way to detect these, is to format as binary, trim trailing zeroes and
-          // then check whether any zeroes remain.
+        if (canUseBinary || canUseHex) {
           try {
             var binary = fd.Constant switch {
               byte u8 => Convert.ToString(u8, 2),
@@ -279,12 +252,24 @@ internal abstract partial class CodeFormatter {
               ushort u16 => Convert.ToString(u16, 2),
               _ => ""
             };
-            if (binary.Length == 0 || (binary.TrimEnd('0').Contains('0') && binary != "0")) {
-              canUseHex = false;
+            highestBit = Math.Max(highestBit, binary.Length);
+            if (binary.Length == 0) {
+              canUseBinary = canUseHex = false;
+            }
+            else if (canUseHex) {
+              // We want to allow zero, plus either values with a single bit set:
+              //   0x0001, 0x0200, 0x8000
+              // Or with a contiguous set of bits set (i.e. a "mask"):
+              //   0x00FF, 0x03F0, 0x0F80
+              // It seems like the easiest (if not the fastest) way to detect these, is to format as binary, trim trailing zeroes
+              // and then check whether any zeroes remain.
+              if (binary.TrimEnd('0').Contains('0')) {
+                canUseHex = false;
+              }
             }
           }
           catch {
-            canUseHex = false;
+            canUseBinary = canUseHex = false;
           }
         }
       }
@@ -307,7 +292,7 @@ internal abstract partial class CodeFormatter {
         foreach (var line in this.CustomAttributes(fd, indent)) {
           yield return line;
         }
-        yield return this.EnumField(fd, indent, mode);
+        yield return this.EnumField(fd, indent, mode, highestBit);
       }
     }
     else {

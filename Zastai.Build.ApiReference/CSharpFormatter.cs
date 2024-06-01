@@ -138,7 +138,7 @@ internal class CSharpFormatter : CodeFormatter {
     return sb.ToString();
   }
 
-  protected override string EnumField(FieldDefinition fd, int indent, EnumFieldValueMode mode) {
+  protected override string EnumField(FieldDefinition fd, int indent, EnumFieldValueMode mode, int highestBit) {
     var sb = new StringBuilder();
     sb.Append(' ', indent);
     if (!fd.IsPublic) {
@@ -153,32 +153,34 @@ internal class CSharpFormatter : CodeFormatter {
       else {
         switch (mode) {
           case EnumFieldValueMode.Binary: {
-            var text = fd.Constant switch {
+            var width = 4 * (1 + ((highestBit - 1) / 4));
 #if NET8_0_OR_GREATER
-              byte u8 => u8.ToString("B8"),
-              int i32 => i32.ToString("B32"),
-              long i64 => i64.ToString("B64"),
-              sbyte i8 => i8.ToString("B8"),
-              short i16 => i16.ToString("B16"),
-              uint u32 => u32.ToString("B32"),
-              ulong u64 => u64.ToString("B64"),
-              ushort u16 => u16.ToString("B16"),
-#else
-              byte u8 => Convert.ToString(u8, 2).PadLeft(8, '0'),
-              int i32 => Convert.ToString(i32, 2).PadLeft(32, '0'),
-              long i64 => Convert.ToString(i64, 2).PadLeft(64, '0'),
-              sbyte i8 => Convert.ToString(i8, 2).PadLeft(8, '0'),
-              short i16 => Convert.ToString(i16, 2).PadLeft(16, '0'),
-              uint u32 => Convert.ToString(u32, 2).PadLeft(32, '0'),
-              ulong u64 => Convert.ToString((long) u64, 2).PadLeft(64, '0'),
-              ushort u16 => Convert.ToString(u16, 2).PadLeft(16, '0'),
-#endif
+            var format = $"B{width}";
+            var text = fd.Constant switch {
+              byte u8 => u8.ToString(format),
+              int i32 => i32.ToString(format),
+              long i64 => i64.ToString(format),
+              sbyte i8 => i8.ToString(format),
+              short i16 => i16.ToString(format),
+              uint u32 => u32.ToString(format),
+              ulong u64 => u64.ToString(format),
+              ushort u16 => u16.ToString(format),
               _ => ""
             };
-            if (text.Length == 0) {
-              sb.Append("/* unexpected field type */ " + this.Value(null, fd.Constant));
-            }
-            else {
+#else
+            var text = fd.Constant switch {
+              byte u8 => Convert.ToString(u8, 2).PadLeft(width, '0'),
+              int i32 => Convert.ToString(i32, 2).PadLeft(width, '0'),
+              long i64 => Convert.ToString(i64, 2).PadLeft(width, '0'),
+              sbyte i8 => Convert.ToString(i8, 2).PadLeft(width, '0'),
+              short i16 => Convert.ToString(i16, 2).PadLeft(width, '0'),
+              uint u32 => Convert.ToString(u32, 2).PadLeft(width, '0'),
+              ulong u64 => Convert.ToString((long) u64, 2).PadLeft(width, '0'),
+              ushort u16 => Convert.ToString(u16, 2).PadLeft(width, '0'),
+              _ => ""
+            };
+#endif
+            if (text.Length != 0) {
               sb.Append("0b");
               for (var pos = 0; pos < text.Length; pos += 4) {
                 if (pos > 0) {
@@ -186,6 +188,10 @@ internal class CSharpFormatter : CodeFormatter {
                 }
                 sb.Append(text, pos, 4);
               }
+            }
+            else {
+              // should never happen, but fall back on the "normal" processing
+              goto case EnumFieldValueMode.Integer;
             }
             break;
           }
@@ -198,22 +204,31 @@ internal class CSharpFormatter : CodeFormatter {
               goto case EnumFieldValueMode.Integer;
             }
             break;
-          case EnumFieldValueMode.Hexadecimal:
-            sb.Append(fd.Constant switch {
-              byte u8 => $"0x{u8:X2}",
-              int i32 => $"0x{i32:X8}",
-              long i64 => $"0x{i64:X16}",
-              sbyte i8 => $"0x{i8:X2}",
-              short i16 => $"0x{i16:X4}",
-              uint u32 => $"0x{u32:X8}",
-              ulong u64 => $"0x{u64:X16}",
-              ushort u16 => $"0x{u16:X4}",
-              _ => "/* unexpected field type */ " + this.Value(null, fd.Constant)
-            });
+          case EnumFieldValueMode.Hexadecimal: {
+            var format = $"X{1 + ((highestBit - 1) / 4)}";
+            var text = fd.Constant switch {
+              byte u8 => u8.ToString(format),
+              int i32 => i32.ToString(format),
+              long i64 => i64.ToString(format),
+              sbyte i8 => i8.ToString(format),
+              short i16 => i16.ToString(format),
+              uint u32 => u32.ToString(format),
+              ulong u64 => u64.ToString(format),
+              ushort u16 => u16.ToString(format),
+              _ => ""
+            };
+            if (text.Length != 0) {
+              sb.Append("0x").Append(text);
+            }
+            else {
+              // should never happen, but fall back on the "normal" processing
+              goto case EnumFieldValueMode.Integer;
+            }
             break;
+          }
           case EnumFieldValueMode.Integer:
-            // We expect only integral values, and we don't want any casts, or even any suffixes (because either they're all int, or
-            // the specific integer type is listed on the enum as a base type, making the interpretation unambiguous).
+            // We expect only fixed-size integral values, and we don't want any casts, or even any suffixes (because either they're
+            // all int, or the specific integer type is listed on the enum as a base type, making the interpretation unambiguous).
             sb.Append(fd.Constant switch {
               byte u8 => u8.ToString(CultureInfo.InvariantCulture),
               int i32 => i32.ToString(CultureInfo.InvariantCulture),
