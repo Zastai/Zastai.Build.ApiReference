@@ -338,8 +338,7 @@ internal class CSharpFormatter : CodeFormatter {
 
   protected override string? GenericParameterConstraints(GenericParameter gp) {
     // Some constraints (like "class" and "new()") are stored as attributes.
-    // However, there seems to be no difference between "class" and "class?", and the "notnull" constraint does not seem to be
-    // reflected in the assembly at all.
+    // Similarly, a [Nullable] seems to be used for the "notnull" constraint, and to distinguish between "class" and "class?".
     if (!gp.HasConstraints && !gp.HasReferenceTypeConstraint && !gp.HasDefaultConstructorConstraint) {
       return null;
     }
@@ -1215,6 +1214,27 @@ internal class CSharpFormatter : CodeFormatter {
     else if (td.IsNestedFamilyOrAssembly) {
       sb.Append("protected internal ");
     }
+    if (td.IsDelegate(out var invoke)) {
+      sb.Append("delegate ");
+      this.MethodName(invoke, out var returnTypeName);
+      if (returnTypeName.Length > 0) {
+        sb.Append(returnTypeName).Append(' ');
+      }
+      sb.Append(this.TypeName(td)).Append(this.Parameters(invoke));
+      var constraints = this.GenericParameterConstraints(td, indent + 2).ToList();
+      if (constraints.Count == 0) {
+        sb.Append(';');
+      }
+      else {
+        constraints[constraints.Count - 1] += ';';
+      }
+      yield return sb.ToString();
+      sb.Clear();
+      foreach (var constraint in constraints) {
+        yield return constraint;
+      }
+      yield break;
+    }
     if (td.IsClass && td.IsAbstract && td.IsSealed) {
       sb.Append("static ");
     }
@@ -1293,17 +1313,19 @@ internal class CSharpFormatter : CodeFormatter {
         sb.AppendJoin(", ", interfaces.Values);
       }
     }
-    var constraints = this.GenericParameterConstraints(td, indent + 2).ToList();
-    if (constraints.Count == 0) {
-      sb.Append(" {");
-    }
-    else {
-      constraints[constraints.Count - 1] += " {";
-    }
-    yield return sb.ToString();
-    sb.Clear();
-    foreach (var constraint in constraints) {
-      yield return constraint;
+    {
+      var constraints = this.GenericParameterConstraints(td, indent + 2).ToList();
+      if (constraints.Count == 0) {
+        sb.Append(" {");
+      }
+      else {
+        constraints[constraints.Count - 1] += " {";
+      }
+      yield return sb.ToString();
+      sb.Clear();
+      foreach (var constraint in constraints) {
+        yield return constraint;
+      }
     }
     foreach (var line in this.Fields(td, indent + 2)) {
       yield return line;
