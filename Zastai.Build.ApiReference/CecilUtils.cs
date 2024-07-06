@@ -208,6 +208,32 @@ internal static class CecilUtils {
     return false;
   }
 
+  public static bool IsDelegate(this TypeDefinition td, [NotNullWhen(true)] out MethodDefinition? invoke) {
+    invoke = null;
+    // They have no contents other than methods.
+    if (td.HasEvents || td.HasFields || td.HasInterfaces || !td.HasMethods || td.HasNestedTypes || td.HasProperties) {
+      return false;
+    }
+    // Base is always System.MulticastDelegate
+    if (td.BaseType is null || !td.BaseType.IsCoreLibraryType(nameof(System), nameof(MulticastDelegate))) {
+      return false;
+    }
+    // Further checks that _could_ be added, if it turns out there's cases where built assemblies contain subclasses of
+    // MulticastDelegate that are not actually delegate types:
+    // - class size seems to always be -1
+    // - class attributes are sealed + visibility
+    // - exactly 4 methods:
+    //   - constructor with 2 arguments: an object called "object" and a nint/IntPtr called "method"
+    //   - Invoke() with the delegate's signature (return type and arguments)
+    //   - BeginInvoke() taking the in/ref/out arguments of Invoke() plus an AsyncCallback called "callback" and an object called
+    //     "object"; returns IAsyncResult.
+    //   - EndInvoke() returning Invoke()'s return type and taking its ref/out arguments plus an IAsyncResult called "result".
+    //   - fixed attributes: Public+HideBySig+SpecialName+RTSpecialName for the constructor;
+    //                       Public+MethodAttributes.Virtual+MethodAttributes.HideBySig+MethodAttributes.NewSlot for the others
+    invoke = td.Methods.FirstOrDefault(md => md.Name == "Invoke");
+    return invoke is not null;
+  }
+
   public static bool IsDynamic(this ICustomAttributeProvider? cap, int idx) {
     if (cap is not null && cap.HasCustomAttributes) {
       foreach (var ca in cap.CustomAttributes) {
