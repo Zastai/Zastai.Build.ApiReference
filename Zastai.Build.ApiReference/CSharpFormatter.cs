@@ -401,6 +401,13 @@ internal class CSharpFormatter : CodeFormatter {
       }
       sb.Append("new()");
     }
+    // Hopefully at some point: if (gp.AllowsByRefLike / gp.HasAllowByRefLike)
+    if (((int) gp.Attributes & 0x20) != 0) {
+      if (!first) {
+        sb.Append(", ");
+      }
+      sb.Append("allows ref struct");
+    }
     return sb.ToString();
   }
 
