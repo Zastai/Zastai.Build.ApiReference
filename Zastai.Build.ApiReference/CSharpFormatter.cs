@@ -528,6 +528,8 @@ internal class CSharpFormatter : CodeFormatter {
         return "'\\a'";
       case '\b':
         return "'\\b'";
+      case '\u001f': // \e in C#13
+        return "'\\e'";
       case '\f':
         return "'\\f'";
       case '\n':
@@ -606,7 +608,7 @@ internal class CSharpFormatter : CodeFormatter {
           sb.Append("\\0");
           break;
         case '\\':
-          sb.Append("\\\\");
+          sb.Append(@"\\");
           break;
         case '\"':
           sb.Append("\\\"");
@@ -616,6 +618,9 @@ internal class CSharpFormatter : CodeFormatter {
           break;
         case '\b':
           sb.Append("\\b");
+          break;
+        case '\u001f': // \e in C#13
+          sb.Append("\\e");
           break;
         case '\f':
           sb.Append("\\f");
@@ -632,7 +637,7 @@ internal class CSharpFormatter : CodeFormatter {
         default:
           if (char.IsControl(c)) {
             var codePoint = (int) c;
-            sb.Append(c > 0xff ? $"\\u{codePoint:x4}" : $"\\x{codePoint:x2}");
+            sb.Append($"\\u{codePoint:X4}");
           }
           else {
             sb.Append(c);
