@@ -21,7 +21,7 @@ public static class Program {
         resolver.AddSearchDirectory(dir);
       }
       else {
-        Console.Out.WriteLine("Ignoring non-existent dependency folder: {0}", dir);
+        Console.Out.WriteLine($"Ignoring non-existent dependency folder: {dir}");
       }
     }
     return new ReaderParameters {
@@ -38,19 +38,20 @@ public static class Program {
     }
     var assembly = args[0];
     if (!File.Exists(assembly)) {
-      Console.Error.WriteLine("Assembly not found: {0}", assembly);
+      Console.Error.WriteLine($"Assembly not found: {assembly}");
       return 2;
     }
     var referenceSource = args[1];
     var outputDir = Path.GetDirectoryName(Path.GetFullPath(referenceSource));
     if (!Directory.Exists(outputDir)) {
-      Console.Error.WriteLine("Output folder does not exist: {0}", outputDir);
+      Console.Error.WriteLine($"Output folder does not exist: {outputDir}");
       return 3;
     }
     CodeFormatter? formatter = null;
     var handleBinaryEnums = false;
     var handleCharEnums = false;
     var handleHexEnums = false;
+    var includeInternals = false;
     var dependencyPath = new List<string>();
     var includedAttributes = new List<string>();
     var excludedAttributes = new List<string>();
@@ -76,13 +77,14 @@ public static class Program {
                 // ignore
                 break;
               default:
-                Console.Error.WriteLine("Unsupported enum handling: {0}", handling);
+                Console.Error.WriteLine($"Unsupported enum handling: {handling}");
                 return 4;
             }
           }
           break;
-        case "-f":
-          switch (args[i + 1].Trim().ToLowerInvariant()) {
+        case "-f": {
+          var format = args[i + 1];
+          switch (format.Trim().ToLowerInvariant()) {
             case "c#":
             case "cs":
             case "csharp":
@@ -97,27 +99,44 @@ public static class Program {
               formatter = new CSharpMarkdownFormatter();
               break;
             default:
-              Console.Error.WriteLine("Unsupported output format: {0}", args[i + 1]);
+              Console.Error.WriteLine($"Unsupported output format: {format}");
               return 4;
           }
           break;
+        }
         case "-ia":
           includedAttributes.Add(args[i + 1]);
           break;
         case "-r":
           dependencyPath.Add(args[i + 1]);
           break;
+        case "-v": {
+          var visibility = args[i + 1];
+          switch (visibility.Trim().ToLowerInvariant()) {
+            case "internal":
+              includeInternals = true;
+              break;
+            case "public":
+              includeInternals = false;
+              break;
+            default:
+              Console.Error.WriteLine($"Unsupported visibility ({visibility}) specified; should be either 'public' or 'internal'.");
+              return 4;
+          }
+          break;
+        }
         default:
           return Program.Usage(4);
       }
     }
     // Default to C#
     formatter ??= new CSharpFormatter();
-    formatter.IncludeCustomAttributes(includedAttributes);
-    formatter.ExcludeCustomAttributes(excludedAttributes);
     formatter.EnableBinaryEnums(handleBinaryEnums);
     formatter.EnableCharEnums(handleCharEnums);
     formatter.EnableHexEnums(handleHexEnums);
+    formatter.ExcludeCustomAttributes(excludedAttributes);
+    formatter.IncludeCustomAttributes(includedAttributes);
+    formatter.IncludeInternals(includeInternals);
     try {
       using var ad = AssemblyDefinition.ReadAssembly(assembly, Program.CreateReaderParameters(assembly, dependencyPath));
       using var reference = referenceSource == "-" ? Console.Out : new StreamWriter(File.Create(referenceSource), Encoding.UTF8);
@@ -154,11 +173,12 @@ public static class Program {
     Console.Out.WriteLine("Usage: {0} ASSEMBLY OUTPUT-FILE [OPTIONS]", Assembly.GetExecutingAssembly().GetName().Name);
     Console.Out.WriteLine();
     Console.Out.WriteLine("Options:");
-    Console.Out.WriteLine("  -f FORMAT                 Specify the output format (csharp or markdown)");
-    Console.Out.WriteLine("  -r DEPENDENCY-DIR         Add a location to search for required references");
     Console.Out.WriteLine("  -ea ATTRIBUTE-TYPE-NAME   Exclude a particular attribute");
     Console.Out.WriteLine("  -eh ENUM-HANDLING         Activate specific enum handling (comma-separated)");
+    Console.Out.WriteLine("  -f FORMAT                 Specify the output format (csharp or markdown)");
     Console.Out.WriteLine("  -ia ATTRIBUTE-TYPE-NAME   Include a particular attribute");
+    Console.Out.WriteLine("  -r DEPENDENCY-DIR         Add a location to search for required references");
+    Console.Out.WriteLine("  -v VISIBILITY             What visibility to include ('public' or 'internal')");
     return rc;
   }
 

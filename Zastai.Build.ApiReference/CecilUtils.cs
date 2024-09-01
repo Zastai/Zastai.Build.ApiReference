@@ -258,6 +258,15 @@ internal static class CecilUtils {
     return false;
   }
 
+  // FIXME: Can the remove method differ? Does it matter?
+  public static bool IsInternalApi(this EventDefinition ed) => ed.AddMethod.IsInternalApi();
+
+  public static bool IsInternalApi(this FieldDefinition fd) => fd.IsAssembly || fd.IsFamilyAndAssembly;
+
+  public static bool IsInternalApi(this MethodDefinition md) => md.IsAssembly || md.IsFamilyAndAssembly;
+
+  public static bool IsInternalApi(this TypeDefinition td) => td.IsNestedAssembly || td.IsNestedFamilyAndAssembly || td.IsNotPublic;
+
   public static bool IsLocalType(this TypeReference tr) => tr.Scope == tr.Module;
 
   public static bool IsLocalType(this TypeReference tr, string? ns) => tr.IsLocalType() && tr.IsNamed(ns);

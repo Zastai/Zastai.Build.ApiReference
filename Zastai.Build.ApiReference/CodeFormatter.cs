@@ -20,6 +20,8 @@ internal abstract partial class CodeFormatter {
 
   private bool _hexEnumsEnabled;
 
+  private bool _includeInternals;
+
   // FIXME: IReadOnlySet would be better, but is not available on .NET Framework.
   private ISet<string>? _runtimeFeatures;
 
@@ -119,7 +121,7 @@ internal abstract partial class CodeFormatter {
     }
     var events = new SortedDictionary<string, EventDefinition>();
     foreach (var ed in td.Events) {
-      if (!ed.IsPublicApi()) {
+      if (!this.ShouldInclude(ed)) {
         continue;
       }
       // Assumption: no overloads for these
@@ -182,7 +184,7 @@ internal abstract partial class CodeFormatter {
     }
     var fields = new SortedDictionary<string, FieldDefinition>();
     foreach (var field in td.Fields) {
-      if (!field.IsPublicApi()) {
+      if (!this.ShouldInclude(field)) {
         continue;
       }
       if (fields.TryGetValue(field.Name, out var previousField)) {
@@ -360,6 +362,8 @@ internal abstract partial class CodeFormatter {
     }
   }
 
+  public void IncludeInternals(bool yes) => this._includeInternals = yes;
+
   protected abstract string LineComment(string comment);
 
   protected abstract string Literal(bool value);
@@ -400,7 +404,7 @@ internal abstract partial class CodeFormatter {
     }
     var methods = new SortedSet<MethodDefinition>(this);
     foreach (var method in td.Methods) {
-      if (!method.IsPublicApi() || method.IsAddOn || method.IsGetter || method.IsRemoveOn || method.IsSetter) {
+      if (!this.ShouldInclude(method) || method.IsAddOn || method.IsGetter || method.IsRemoveOn || method.IsSetter) {
         continue;
       }
       if (methods.Add(method)) {
@@ -462,7 +466,7 @@ internal abstract partial class CodeFormatter {
     }
     var nestedTypes = new SortedDictionary<string, TypeDefinition>();
     foreach (var type in td.NestedTypes) {
-      if (!type.IsPublicApi()) {
+      if (!this.ShouldInclude(td)) {
         continue;
       }
       if (nestedTypes.TryGetValue(type.Name, out var previousType)) {
@@ -494,24 +498,25 @@ internal abstract partial class CodeFormatter {
     var parametrizedProperties = new SortedDictionary<string, SortedSet<PropertyDefinition>>();
     var properties = new SortedSet<PropertyDefinition>(this);
     foreach (var property in td.Properties) {
-      if ((property.GetMethod?.IsPublicApi() ?? false) || (property.SetMethod?.IsPublicApi() ?? false)) {
-        if (property.HasParameters) {
-          if (!parametrizedProperties.TryGetValue(property.Name, out var overloads)) {
-            parametrizedProperties.Add(property.Name, overloads = new SortedSet<PropertyDefinition>(this));
-          }
-          // This ends up sorting on the return type first; given that this is probably an indexer (what other properties have
-          // parameters?), that should be fine. Alternatively, we could stringify the parameters only.
-          if (overloads.TryGetValue(property, out var previousProperty)) {
-            Trace.Fail(property.ToString(), $"Multiply defined property; previous was {previousProperty}.");
-          }
-          overloads.Add(property);
+      if (!this.ShouldInclude(property.GetMethod) && !this.ShouldInclude(property.SetMethod)) {
+        continue;
+      }
+      if (property.HasParameters) {
+        if (!parametrizedProperties.TryGetValue(property.Name, out var overloads)) {
+          parametrizedProperties.Add(property.Name, overloads = new SortedSet<PropertyDefinition>(this));
         }
-        else {
-          if (properties.TryGetValue(property, out var previousProperty)) {
-            Trace.Fail(property.ToString(), $"Multiply defined property in {td}; previous was {previousProperty}.");
-          }
-          properties.Add(property);
+        // This ends up sorting on the return type first; given that this is probably an indexer (what other properties have
+        // parameters?), that should be fine. Alternatively, we could stringify the parameters only.
+        if (overloads.TryGetValue(property, out var previousProperty)) {
+          Trace.Fail(property.ToString(), $"Multiply defined property; previous was {previousProperty}.");
         }
+        overloads.Add(property);
+      }
+      else {
+        if (properties.TryGetValue(property, out var previousProperty)) {
+          Trace.Fail(property.ToString(), $"Multiply defined property in {td}; previous was {previousProperty}.");
+        }
+        properties.Add(property);
       }
     }
     foreach (var overloads in parametrizedProperties.Values) {
@@ -551,6 +556,15 @@ internal abstract partial class CodeFormatter {
     return this._attributesToExclude.All(pattern => !name.Matches(pattern));
   }
 
+  private bool ShouldInclude(EventDefinition ed) => ed.IsPublicApi() || (this._includeInternals && ed.IsInternalApi());
+
+  private bool ShouldInclude(FieldDefinition fd) => fd.IsPublicApi() || (this._includeInternals && fd.IsInternalApi());
+
+  private bool ShouldInclude(MethodDefinition? md)
+    => md is not null && (md.IsPublicApi() || (this._includeInternals && md.IsInternalApi()));
+
+  private bool ShouldInclude(TypeDefinition td) => td.IsPublicApi() || (this._includeInternals && td.IsInternalApi());
+
   private IEnumerable<string?> TopLevelAttributes(AssemblyDefinition ad) {
     foreach (var line in this.CustomAttributes(ad)) {
       yield return line;
@@ -568,7 +582,7 @@ internal abstract partial class CodeFormatter {
     foreach (var md in ad.Modules) {
       if (md.HasTypes) {
         foreach (var td in md.Types) {
-          if (!td.IsPublicApi()) {
+          if (!this.ShouldInclude(td)) {
             continue;
           }
           if (!namespacedTypes.TryGetValue(td.Namespace, out var types)) {

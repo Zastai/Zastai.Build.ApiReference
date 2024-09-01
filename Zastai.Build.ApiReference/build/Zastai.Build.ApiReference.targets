@@ -36,6 +36,9 @@
     <!-- Detetermines whether API reference sources should be generated. -->
     <GenerateApiReference Condition=" '$(GenerateApiReference)' == '' ">true</GenerateApiReference>
 
+    <!-- Detetermines what elements should be included. -->
+    <VisibilityForApiReference Condition=" '$(VisibilityForApiReference)' == '' ">public</VisibilityForApiReference>
+
     <!-- The program needed to run Mono executables. -->
     <MonoRunner Condition=" '$(MonoRunner)' == '' ">mono --runtime=v4.0.30319</MonoRunner>
 
@@ -93,6 +96,21 @@
       <_ApiReferenceCommandLineOptions Include="-ea &quot;%(_ApiReferenceExcludeAttributes.Identity)&quot;" />
     </ItemGroup>
 
+    <!-- Enum Handling -->
+    <ItemGroup>
+      <_ApiReferenceEnumHandling Include="binary" Condition=" '$(EnableBinaryEnumHandling)' == 'true' " />
+      <_ApiReferenceEnumHandling Include="char" Condition=" '$(EnableCharEnumHandling)' == 'true' " />
+      <_ApiReferenceEnumHandling Include="hex" Condition=" '$(EnableHexEnumHandling)' == 'true' " />
+    </ItemGroup>
+
+    <PropertyGroup>
+      <_ApiReferenceEnumHandling>@(_ApiReferenceEnumHandling, ',')</_ApiReferenceEnumHandling>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <_ApiReferenceCommandLineOptions Include="-eh &quot;$(_ApiReferenceEnumHandling)&quot;" />
+    </ItemGroup>
+
     <!-- Reference Path Configured: Use. -->
     <ItemGroup Condition=" '$(ApiReferenceLibraryPath)' != '' ">
       <_ConfiguredDirectoriesContainingReferencedAssemblies Include="$(ApiReferenceLibraryPath)" />
@@ -111,19 +129,10 @@
       <_ApiReferenceCommandLineOptions Include="-r &quot;%(_DirectoriesContainingReferencedAssemblies.Identity)&quot;" />
     </ItemGroup>
 
-    <!-- Enum Handling -->
+    <!-- Visibility to Include: Pass -->
     <ItemGroup>
-      <_ApiReferenceEnumHandling Include="binary" Condition=" '$(EnableBinaryEnumHandling)' == 'true' " />
-      <_ApiReferenceEnumHandling Include="char" Condition=" '$(EnableCharEnumHandling)' == 'true' " />
-      <_ApiReferenceEnumHandling Include="hex" Condition=" '$(EnableHexEnumHandling)' == 'true' " />
-    </ItemGroup>
-
-    <PropertyGroup>
-      <_ApiReferenceEnumHandling>@(_ApiReferenceEnumHandling, ',')</_ApiReferenceEnumHandling>
-    </PropertyGroup>
-
-    <ItemGroup>
-      <_ApiReferenceCommandLineOptions Include="-eh &quot;$(_ApiReferenceEnumHandling)&quot;" />
+      <_ApiReferenceCommandLineOptions Include="-v" />
+      <_ApiReferenceCommandLineOptions Include="$(VisibilityForApiReference)" />
     </ItemGroup>
 
     <MakeDir Directories="$([System.IO.Path]::GetDirectoryName($([System.IO.Path]::GetFullPath('$(ApiReferenceOutputPath)'))))"

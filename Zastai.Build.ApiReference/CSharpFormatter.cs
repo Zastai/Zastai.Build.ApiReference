@@ -48,8 +48,14 @@ internal class CSharpFormatter : CodeFormatter {
     if (md.IsPublic) {
       sb.Append("public ");
     }
+    else if (md.IsAssembly) {
+      sb.Append("internal ");
+    }
     else if (md.IsFamily) {
       sb.Append("protected ");
+    }
+    else if (md.IsFamilyAndAssembly) {
+      sb.Append("private protected ");
     }
     else if (md.IsFamilyOrAssembly) {
       sb.Append("protected internal ");
@@ -281,11 +287,20 @@ internal class CSharpFormatter : CodeFormatter {
     if (fd.IsPublic) {
       sb.Append("public ");
     }
+    else if (fd.IsAssembly) {
+      sb.Append("internal ");
+    }
     else if (fd.IsFamily) {
       sb.Append("protected ");
     }
+    else if (fd.IsFamilyAndAssembly) {
+      sb.Append("private protected ");
+    }
     else if (fd.IsFamilyOrAssembly) {
       sb.Append("protected internal ");
+    }
+    else {
+      sb.Append("/* unexpected accessibility */ ");
     }
     if (fd.IsRequired()) {
       sb.Append("required ");
@@ -1213,18 +1228,24 @@ internal class CSharpFormatter : CodeFormatter {
       yield return sb.ToString();
       sb.Clear();
     }
-    if (!td.IsPublicApi()) {
-      yield return this.LineComment($"ERROR: Type {td} has unsupported access: {td.Attributes}.");
-    }
     sb.Append(' ', indent);
     if (td.IsPublic || td.IsNestedPublic) {
       sb.Append("public ");
     }
+    else if (td.IsNestedAssembly || td.IsNotPublic) {
+      sb.Append("internal ");
+    }
     else if (td.IsNestedFamily) {
       sb.Append("protected ");
     }
+    else if (td.IsNestedFamilyAndAssembly) {
+      sb.Append("private protected ");
+    }
     else if (td.IsNestedFamilyOrAssembly) {
       sb.Append("protected internal ");
+    }
+    else {
+      sb.Append("/* unexpected accessibility */ ");
     }
     if (td.IsDelegate(out var invoke)) {
       sb.Append("delegate ");

@@ -111,6 +111,14 @@ Determines whether the output files are registered in `@(FileWrites)`.
 
 Defaults to `false`.
 
+### VisibilityForApiReference
+
+Determines which items are included in API Reference sources. Can be
+either `public`, to only include public API, or `internal`, to also
+include elements marked as `internal` or `private protected`.
+
+Defaults to `public`.
+
 ## Configuration - Which Attributes to Include
 
 The choice of which attributes to consider part of the public API is
