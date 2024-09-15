@@ -20,8 +20,6 @@ internal abstract partial class CodeFormatter {
 
   private bool _hexEnumsEnabled;
 
-  private bool _includeInternals;
-
   // FIXME: IReadOnlySet would be better, but is not available on .NET Framework.
   private ISet<string>? _runtimeFeatures;
 
@@ -362,7 +360,7 @@ internal abstract partial class CodeFormatter {
     }
   }
 
-  public void IncludeInternals(bool yes) => this._includeInternals = yes;
+  public bool IncludeInternals { get; set; }
 
   protected abstract string LineComment(string comment);
 
@@ -556,14 +554,14 @@ internal abstract partial class CodeFormatter {
     return this._attributesToExclude.All(pattern => !name.Matches(pattern));
   }
 
-  private bool ShouldInclude(EventDefinition ed) => ed.IsPublicApi() || (this._includeInternals && ed.IsInternalApi());
+  private bool ShouldInclude(EventDefinition ed) => ed.IsPublicApi() || (this.IncludeInternals && ed.IsInternalApi());
 
-  private bool ShouldInclude(FieldDefinition fd) => fd.IsPublicApi() || (this._includeInternals && fd.IsInternalApi());
+  private bool ShouldInclude(FieldDefinition fd) => fd.IsPublicApi() || (this.IncludeInternals && fd.IsInternalApi());
 
   private bool ShouldInclude(MethodDefinition? md)
-    => md is not null && (md.IsPublicApi() || (this._includeInternals && md.IsInternalApi()));
+    => md is not null && (md.IsPublicApi() || (this.IncludeInternals && md.IsInternalApi()));
 
-  private bool ShouldInclude(TypeDefinition td) => td.IsPublicApi() || (this._includeInternals && td.IsInternalApi());
+  private bool ShouldInclude(TypeDefinition td) => td.IsPublicApi() || (this.IncludeInternals && td.IsInternalApi());
 
   private IEnumerable<string?> TopLevelAttributes(AssemblyDefinition ad) {
     foreach (var line in this.CustomAttributes(ad)) {

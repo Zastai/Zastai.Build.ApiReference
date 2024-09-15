@@ -58,7 +58,10 @@ internal class CSharpFormatter : CodeFormatter {
       sb.Append("private protected ");
     }
     else if (md.IsFamilyOrAssembly) {
-      sb.Append("protected internal ");
+      sb.Append("protected ");
+      if (this.IncludeInternals) {
+        sb.Append("internal ");
+      }
     }
     else {
       sb.Append("/* unexpected accessibility */ ");
@@ -297,7 +300,10 @@ internal class CSharpFormatter : CodeFormatter {
       sb.Append("private protected ");
     }
     else if (fd.IsFamilyOrAssembly) {
-      sb.Append("protected internal ");
+      sb.Append("protected ");
+      if (this.IncludeInternals) {
+        sb.Append("internal ");
+      }
     }
     else {
       sb.Append("/* unexpected accessibility */ ");
@@ -1242,7 +1248,10 @@ internal class CSharpFormatter : CodeFormatter {
       sb.Append("private protected ");
     }
     else if (td.IsNestedFamilyOrAssembly) {
-      sb.Append("protected internal ");
+      sb.Append("protected ");
+      if (this.IncludeInternals) {
+        sb.Append("internal ");
+      }
     }
     else {
       sb.Append("/* unexpected accessibility */ ");

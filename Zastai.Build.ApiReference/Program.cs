@@ -136,7 +136,7 @@ public static class Program {
     formatter.EnableHexEnums(handleHexEnums);
     formatter.ExcludeCustomAttributes(excludedAttributes);
     formatter.IncludeCustomAttributes(includedAttributes);
-    formatter.IncludeInternals(includeInternals);
+    formatter.IncludeInternals = includeInternals;
     try {
       using var ad = AssemblyDefinition.ReadAssembly(assembly, Program.CreateReaderParameters(assembly, dependencyPath));
       using var reference = referenceSource == "-" ? Console.Out : new StreamWriter(File.Create(referenceSource), Encoding.UTF8);
