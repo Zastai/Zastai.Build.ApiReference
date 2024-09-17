@@ -179,4 +179,4 @@ Package icon created by [DinosoftLabs - FlatIcon][PackageIcon].
 [GHReleases]: https://github.com/Zastai/Zastai.Build.APIReference/releases
 [PackageIcon]: https://www.flaticon.com/free-icon/browser_718064
 
-[d.b.t]: https://docs.microsoft.com/en-us/visualstudio/msbuild/customize-your-build#directorybuildprops-and-directorybuildtargets
+[d.b.t]: https://learn.microsoft.com/en-us/visualstudio/msbuild/customize-by-directory?view=vs-2022#directorybuildprops-and-directorybuildtargets
