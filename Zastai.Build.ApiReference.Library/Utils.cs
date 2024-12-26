@@ -1,9 +1,6 @@
-﻿using JetBrains.Annotations;
-
-namespace Zastai.Build.ApiReference;
+﻿namespace Zastai.Build.ApiReference;
 
 /// <summary>General utilities.</summary>
-[PublicAPI]
 internal static class Utils {
 
   public static bool Matches(this string text, string pattern) {

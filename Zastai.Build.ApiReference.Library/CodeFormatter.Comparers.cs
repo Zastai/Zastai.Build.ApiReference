@@ -1,6 +1,6 @@
 ﻿ namespace Zastai.Build.ApiReference;
 
-internal abstract partial class CodeFormatter : IComparer<MethodDefinition>, IComparer<PropertyDefinition> {
+public abstract partial class CodeFormatter : IComparer<MethodDefinition>, IComparer<PropertyDefinition> {
 
   public int Compare(MethodDefinition? x, MethodDefinition? y) {
     if (object.ReferenceEquals(x, y)) {

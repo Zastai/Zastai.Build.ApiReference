@@ -2,7 +2,7 @@ using System.Linq;
 
 namespace Zastai.Build.ApiReference;
 
-internal abstract partial class CodeFormatter {
+public abstract partial class CodeFormatter {
 
   protected string? CurrentNamespace { get; private set; }
 

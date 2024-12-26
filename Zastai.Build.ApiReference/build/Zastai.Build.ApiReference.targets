@@ -39,28 +39,14 @@
     <!-- Detetermines what elements should be included. -->
     <VisibilityForApiReference Condition=" '$(VisibilityForApiReference)' == '' ">public</VisibilityForApiReference>
 
-    <!-- The program needed to run Mono executables. -->
-    <MonoRunner Condition=" '$(MonoRunner)' == '' ">mono --runtime=v4.0.30319</MonoRunner>
-
-    <!-- The program needed to run .NET Core executables. -->
-    <NetCoreRunner Condition=" '$(NetCoreRunner)' == '' ">dotnet</NetCoreRunner>
-
     <!-- If set to true, the output files are not registered in @(FileWrites). -->
     <SkipApiReferenceOutputPathFileWrite Condition=" '$(SkipApiReferenceOutputPathFileWrite)' == '' ">false</SkipApiReferenceOutputPathFileWrite>
 
   </PropertyGroup>
 
-  <!-- Derived Properties -->
-  <PropertyGroup>
-
-    <_ApiReferenceGenerator Condition=" '$(MSBuildRuntimeType)' == 'Core' ">$(MSBuildThisFileDirectory)..\tools\net6.0\Zastai.Build.ApiReference.dll</_ApiReferenceGenerator>
-    <_ApiReferenceGenerator Condition=" '$(MSBuildRuntimeType)' != 'Core' ">$(MSBuildThisFileDirectory)..\tools\net472\Zastai.Build.ApiReference.exe</_ApiReferenceGenerator>
-
-    <_ApiReferenceGeneratorCommandLine Condition=" '$(MSBuildRuntimeType)' == 'Core'                             ">$(NetCoreRunner) "$(_ApiReferenceGenerator)"</_ApiReferenceGeneratorCommandLine>
-    <_ApiReferenceGeneratorCommandLine Condition=" '$(MSBuildRuntimeType)' != 'Core' And '$(OS)' == 'Windows_NT' ">"$(_ApiReferenceGenerator)"</_ApiReferenceGeneratorCommandLine>
-    <_ApiReferenceGeneratorCommandLine Condition=" '$(MSBuildRuntimeType)' != 'Core' And '$(OS)' != 'Windows_NT' ">$(MonoRunner) "$(_ApiReferenceGenerator)"</_ApiReferenceGeneratorCommandLine>
-
-  </PropertyGroup>
+  <!-- Declare the task itself. -->
+  <UsingTask TaskName="GenerateApiReference" TaskFactory="TaskHostFactory"
+             AssemblyFile="$(MSBuildThisFileDirectory)netstandard2.0\Zastai.Build.ApiReference.dll" />
 
   <!-- Hook into the regular build process at a time when all our inputs are available. -->
   <PropertyGroup Condition=" '$(GenerateApiReference)' == 'true' ">
@@ -79,36 +65,19 @@
     <!-- Invalid Reference Format: Error. -->
     <Error Text="Invalid API Reference format: $(ApiReferenceFormat)." Condition=" '$(_ApiReferenceFormat)' == '' " />
 
-    <!-- Valid Reference Format: Pass. -->
-    <ItemGroup>
-      <_ApiReferenceCommandLineOptions Include="-f &quot;$(_ApiReferenceFormat)&quot;" />
-    </ItemGroup>
+    <!-- Running the task properly requires a sufficiently recent MSBuild. -->
+    <Error Text="The API reference generation requires a recent MSBuild (version >= 17.1.0, not $(MSBuildVersion))."
+           Condition=" $(MSBuildVersion) &lt; 17.1.0 " />
 
-    <!-- Attributes to Include: Remove Duplicates and Pass. -->
-    <ItemGroup>
-      <_ApiReferenceIncludeAttributes Include="%(APIReferenceIncludeAttribute.Identity)" />
-      <_ApiReferenceCommandLineOptions Include="-ia &quot;%(_ApiReferenceIncludeAttributes.Identity)&quot;" />
-    </ItemGroup>
-
-    <!-- Attributes to Exclude: Remove Duplicates and Pass. -->
-    <ItemGroup>
-      <_ApiReferenceExcludeAttributes Include="%(APIReferenceExcludeAttribute.Identity)" />
-      <_ApiReferenceCommandLineOptions Include="-ea &quot;%(_ApiReferenceExcludeAttributes.Identity)&quot;" />
-    </ItemGroup>
+    <!-- Create the output directory (if requested to do so). -->
+    <MakeDir Directories="$([System.IO.Path]::GetDirectoryName($([System.IO.Path]::GetFullPath('$(ApiReferenceOutputPath)'))))"
+             Condition=" '$(CreateApiReferenceOutputDir)' == 'true' "/>
 
     <!-- Enum Handling -->
     <ItemGroup>
       <_ApiReferenceEnumHandling Include="binary" Condition=" '$(EnableBinaryEnumHandling)' == 'true' " />
       <_ApiReferenceEnumHandling Include="char" Condition=" '$(EnableCharEnumHandling)' == 'true' " />
       <_ApiReferenceEnumHandling Include="hex" Condition=" '$(EnableHexEnumHandling)' == 'true' " />
-    </ItemGroup>
-
-    <PropertyGroup>
-      <_ApiReferenceEnumHandling>@(_ApiReferenceEnumHandling, ',')</_ApiReferenceEnumHandling>
-    </PropertyGroup>
-
-    <ItemGroup>
-      <_ApiReferenceCommandLineOptions Include="-eh &quot;$(_ApiReferenceEnumHandling)&quot;" />
     </ItemGroup>
 
     <!-- Reference Path Configured: Use. -->
@@ -125,20 +94,16 @@
     <ItemGroup>
       <!-- Remove duplicates and retain only the names. -->
       <_DirectoriesContainingReferencedAssemblies Include="%(_AllDirectoriesContainingReferencedAssemblies.Identity)" />
-      <!-- Turn into command-line options. -->
-      <_ApiReferenceCommandLineOptions Include="-r &quot;%(_DirectoriesContainingReferencedAssemblies.Identity)&quot;" />
     </ItemGroup>
 
-    <!-- Visibility to Include: Pass -->
-    <ItemGroup>
-      <_ApiReferenceCommandLineOptions Include="-v" />
-      <_ApiReferenceCommandLineOptions Include="$(VisibilityForApiReference)" />
-    </ItemGroup>
-
-    <MakeDir Directories="$([System.IO.Path]::GetDirectoryName($([System.IO.Path]::GetFullPath('$(ApiReferenceOutputPath)'))))"
-             Condition=" '$(CreateApiReferenceOutputDir)' == 'true' "/>
-
-    <Exec Command="$(_ApiReferenceGeneratorCommandLine) &quot;$(IntermediateOutputPath)$(TargetName)$(TargetExt)&quot; &quot;$(ApiReferenceOutputPath)&quot; @(_ApiReferenceCommandLineOptions, ' ')" />
+    <GenerateApiReference Assembly="$(IntermediateOutputPath)$(TargetName)$(TargetExt)"
+                          EnumHandling="@(_ApiReferenceEnumHandling, ',')"
+                          ExcludeAttributes="@(APIReferenceExcludeAttribute)"
+                          Format="$(_ApiReferenceFormat)"
+                          IncludeAttributes="@(APIReferenceIncludeAttribute)"
+                          LibraryPath="@(_DirectoriesContainingReferencedAssemblies)"
+                          OutputPath="$(ApiReferenceOutputPath)"
+                          Visibility="$(VisibilityForApiReference)" />
 
     <ItemGroup>
       <FileWrites Condition=" '$(SkipApiReferenceOutputPathFileWrite)' != 'true' " Include="$(ApiReferenceOutputPath) "/>

@@ -1,12 +1,9 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 
-using JetBrains.Annotations;
-
 namespace Zastai.Build.ApiReference;
 
 /// <summary>Utility methods for working with Mono.Cecil elements.</summary>
-[PublicAPI]
 internal static class CecilUtils {
 
   public static Nullability? GetNullability(this ICustomAttributeProvider cap, MethodDefinition? context, int idx = 0)

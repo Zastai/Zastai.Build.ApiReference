@@ -4,7 +4,7 @@ using System.Runtime.CompilerServices;
 
 namespace Zastai.Build.ApiReference;
 
-internal class CSharpFormatter : CodeFormatter {
+public class CSharpFormatter : CodeFormatter {
 
   protected sealed class TypeNameContext {
 
@@ -579,10 +579,10 @@ internal class CSharpFormatter : CodeFormatter {
   protected override string Literal(double value) => value switch {
     Math.E => "Math.E",
     Math.PI => "Math.PI",
-#if NETFRAMEWORK
-    6.283185307179586476925 => "Math.Tau",
-#else
+#if NET
     Math.Tau => "Math.Tau",
+#else
+    6.283185307179586476925 => "Math.Tau",
 #endif
     double.Epsilon => "double.Epsilon",
     double.MaxValue => "double.MaxValue",
@@ -594,14 +594,14 @@ internal class CSharpFormatter : CodeFormatter {
   };
 
   protected override string Literal(float value) => value switch {
-#if NETFRAMEWORK
-    2.71828183F => "MathF.E",
-    3.14159265F => "MathF.PI",
-    6.283185307F => "MathF.Tau",
-#else
+#if NET
     MathF.E => "MathF.E",
     MathF.PI => "MathF.PI",
     MathF.Tau => "MathF.Tau",
+#else
+    2.71828183F => "MathF.E",
+    3.14159265F => "MathF.PI",
+    6.283185307F => "MathF.Tau",
 #endif
     float.Epsilon => "float.Epsilon",
     float.MaxValue => "float.MaxValue",

@@ -2,7 +2,7 @@
 
 namespace Zastai.Build.ApiReference;
 
-internal class CSharpMarkdownFormatter : CSharpFormatter {
+public class CSharpMarkdownFormatter : CSharpFormatter {
 
   protected override int TopLevelTypeIndent => 0;
 

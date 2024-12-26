@@ -1,0 +1,60 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <TargetFrameworks>net8.0</TargetFrameworks>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <Copyright>Copyright © 2024 Tim Van Holder. All rights reserved.</Copyright>
+    <RepositoryUrl>https://github.com/Zastai/Zastai.Build.ApiReference</RepositoryUrl>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <Description>This tool generates an API reference for a .NET assembly, to allow easy API diffs.</Description>
+    <PackageIcon>package-icon.png</PackageIcon>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>$(RepositoryUrl)/blob/main/README.md</PackageProjectUrl>
+    <PackageReadMeFile>README.md</PackageReadMeFile>
+    <PackageTags>C# API Reference</PackageTags>
+    <RootNamespace>Zastai.Build.ApiReference</RootNamespace>
+    <Title>API Reference Generator Tool</Title>
+    <Version>3.0.0-pre</Version>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>dotnet-api-reference</ToolCommandName>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <LangVersion>12</LangVersion>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Zastai.Build.ApiReference.Library\Zastai.Build.ApiReference.Library.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="../LICENSE.md">
+      <Pack>true</Pack>
+      <PackagePath>LICENSE.md</PackagePath>
+    </None>
+    <None Include="README.md">
+      <Pack>true</Pack>
+      <PackagePath>README.md</PackagePath>
+    </None>
+    <None Include="../package-icon.png">
+      <Pack>true</Pack>
+      <PackagePath/>
+    </None>
+  </ItemGroup>
+
+</Project>
