@@ -1,4 +1,10 @@
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
+using System.Text;
+
+using Mono.Cecil;
 
 namespace Zastai.Build.ApiReference;
 
@@ -10,9 +16,9 @@ public abstract partial class CodeFormatter {
 
   protected virtual int TopLevelTypeIndent => 2;
 
-  private readonly ISet<string> _attributesToExclude = new HashSet<string>();
+  private readonly HashSet<string> _attributesToExclude = [];
 
-  private readonly ISet<string> _attributesToInclude = new HashSet<string>();
+  private readonly HashSet<string> _attributesToInclude = [];
 
   private bool _binaryEnumsEnabled;
 
@@ -23,7 +29,7 @@ public abstract partial class CodeFormatter {
   // FIXME: IReadOnlySet would be better, but is not available on .NET Framework.
   private ISet<string>? _runtimeFeatures;
 
-  protected virtual IEnumerable<string?> AssemblyAttributeFooter(AssemblyDefinition ad) => Enumerable.Empty<string?>();
+  protected virtual IEnumerable<string?> AssemblyAttributeFooter(AssemblyDefinition ad) => [];
 
   protected virtual IEnumerable<string?> AssemblyAttributeHeader(AssemblyDefinition ad) {
     yield return null;
@@ -61,14 +67,14 @@ public abstract partial class CodeFormatter {
 
   protected IEnumerable<string> CustomAttributes(IEnumerable<CustomAttribute> attributes) {
     // Sort by the (full) type name; unfortunately, I'm not sure how to sort duplicates in a stable way.
-    var sortedAttributes = new SortedDictionary<string, IList<CustomAttribute>>();
+    var sortedAttributes = new SortedDictionary<string, List<CustomAttribute>>();
     foreach (var ca in attributes) {
       if (!this.Retain(ca)) {
         continue;
       }
       var attributeType = ca.AttributeType.FullName;
       if (!sortedAttributes.TryGetValue(attributeType, out var list)) {
-        sortedAttributes.Add(attributeType, list = new List<CustomAttribute>());
+        sortedAttributes.Add(attributeType, list = []);
       }
       list.Add(ca);
     }
@@ -160,7 +166,7 @@ public abstract partial class CodeFormatter {
         types.Add(et.FullName, et);
       }
     }
-    return exportedTypes.Count == 0 ? Enumerable.Empty<string?>() : this.ExportedTypes(exportedTypes);
+    return exportedTypes.Count == 0 ? [] : this.ExportedTypes(exportedTypes);
   }
 
   public void ExcludeCustomAttributes(IEnumerable<string> patterns) {
@@ -205,7 +211,7 @@ public abstract partial class CodeFormatter {
         foreach (var ca in td.CustomAttributes) {
           var at = ca.AttributeType;
           if (at.Scope == at.Module.TypeSystem.CoreLibrary && at is { Namespace: "System", Name: "FlagsAttribute" }) {
-            // Character values never makse sense for [Flags] enums.
+            // Character values never makes sense for [Flags] enums.
             canUseCharacters = false;
             canUseBinary = this._binaryEnumsEnabled;
             canUseHex = this._hexEnumsEnabled;
@@ -306,7 +312,7 @@ public abstract partial class CodeFormatter {
     }
   }
 
-  protected virtual IEnumerable<string?> FileFooter(AssemblyDefinition ad) => Enumerable.Empty<string?>();
+  protected virtual IEnumerable<string?> FileFooter(AssemblyDefinition ad) => [];
 
   protected virtual IEnumerable<string?> FileHeader(AssemblyDefinition ad) {
     yield return this.LineComment("=== Generated API Reference === DO NOT EDIT BY HAND ===");
@@ -426,7 +432,7 @@ public abstract partial class CodeFormatter {
     }
   }
 
-  protected virtual IEnumerable<string?> ModuleAttributeFooter(ModuleDefinition md) => Enumerable.Empty<string?>();
+  protected virtual IEnumerable<string?> ModuleAttributeFooter(ModuleDefinition md) => [];
 
   protected virtual IEnumerable<string?> ModuleAttributeHeader(ModuleDefinition md) {
     yield return null;
@@ -454,9 +460,9 @@ public abstract partial class CodeFormatter {
   protected virtual string NamedCustomAttributeArgument(string name, CustomAttributeArgument value)
     => name + " = " + this.CustomAttributeArgument(value);
 
-  protected virtual IEnumerable<string?> NamespaceFooter() => Enumerable.Empty<string?>();
+  protected virtual IEnumerable<string?> NamespaceFooter() => [];
 
-  protected virtual IEnumerable<string?> NamespaceHeader() => Enumerable.Empty<string?>();
+  protected virtual IEnumerable<string?> NamespaceHeader() => [];
 
   protected IEnumerable<string?> NestedTypes(TypeDefinition td, int indent) {
     if (!td.HasNestedTypes) {
@@ -622,7 +628,7 @@ public abstract partial class CodeFormatter {
 
   protected abstract IEnumerable<string?> Type(TypeDefinition td, int indent);
 
-  protected virtual IEnumerable<string?> TypeFooter(TypeDefinition td) => Enumerable.Empty<string?>();
+  protected virtual IEnumerable<string?> TypeFooter(TypeDefinition td) => [];
 
   protected virtual IEnumerable<string?> TypeHeader(TypeDefinition td) {
     yield return null;

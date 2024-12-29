@@ -1,4 +1,9 @@
-﻿ namespace Zastai.Build.ApiReference;
+﻿using System;
+using System.Collections.Generic;
+
+using Mono.Cecil;
+
+namespace Zastai.Build.ApiReference;
 
 public abstract partial class CodeFormatter : IComparer<MethodDefinition>, IComparer<PropertyDefinition> {
 

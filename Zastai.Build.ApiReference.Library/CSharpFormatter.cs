@@ -1,24 +1,24 @@
+using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Text;
+
+using Mono.Cecil;
 
 namespace Zastai.Build.ApiReference;
 
 public class CSharpFormatter : CodeFormatter {
 
-  protected sealed class TypeNameContext {
+  protected sealed class TypeNameContext(ICustomAttributeProvider? main, MethodDefinition? method = null,
+                                         TypeDefinition? type = null) {
 
-    public TypeNameContext(ICustomAttributeProvider? main, MethodDefinition? method = null, TypeDefinition? type = null) {
-      this.Main = main;
-      this.Method = method;
-      this.Type = type;
-    }
+    public readonly ICustomAttributeProvider? Main = main;
 
-    public readonly ICustomAttributeProvider? Main;
+    public readonly MethodDefinition? Method = method;
 
-    public readonly MethodDefinition? Method;
-
-    public readonly TypeDefinition? Type;
+    public readonly TypeDefinition? Type = type;
 
     // 3 things we care about are handled by attributes on the context:
     // - [Dynamic] to distinguish `dynamic` from `object`
@@ -82,7 +82,7 @@ public class CSharpFormatter : CodeFormatter {
     else if (md.IsVirtual) {
       // For some reason, static virtual methods in interfaces have IsReuseSlot set; that's currently the only situation where
       // static+virtual is valid, so we can just look at IsStatic to ignore the IsReuseSlot.
-      var isOverride = (md.IsReuseSlot && !md.IsStatic) || (md.IsNewSlot && md.HasCovariantReturn());
+      var isOverride = md is { IsReuseSlot: true, IsStatic: false } || (md.IsNewSlot && md.HasCovariantReturn());
       sb.Append(isOverride ? "override " : "virtual ");
     }
     return sb.ToString();
@@ -345,7 +345,7 @@ public class CSharpFormatter : CodeFormatter {
     return sb.ToString();
   }
 
-  private string GenericParameter(GenericParameter gp) {
+  private static string GenericParameter(GenericParameter gp) {
     var sb = new StringBuilder();
     if (gp.IsCovariant) {
       sb.Append("out ");
@@ -416,14 +416,13 @@ public class CSharpFormatter : CodeFormatter {
       sb.Append(isUnmanaged ? "unmanaged" : "struct");
       first = false;
     }
-    if (gp.HasDefaultConstructorConstraint && !gp.HasNotNullableValueTypeConstraint) {
+    if (gp is { HasDefaultConstructorConstraint: true, HasNotNullableValueTypeConstraint: false }) {
       if (!first) {
         sb.Append(", ");
       }
       sb.Append("new()");
     }
-    // Hopefully at some point: if (gp.AllowsByRefLike / gp.HasAllowByRefLike)
-    if (((int) gp.Attributes & 0x20) != 0) {
+    if (gp.AllowByRefLikeConstraint) {
       if (!first) {
         sb.Append(", ");
       }
@@ -440,7 +439,7 @@ public class CSharpFormatter : CodeFormatter {
         var arguments = new List<string>();
         foreach (var argument in gi.GenericArguments) {
           if (argument is GenericParameter gp) {
-            arguments.Add(this.GenericParameter(gp));
+            arguments.Add(CSharpFormatter.GenericParameter(gp));
           }
           else {
             arguments.Add(this.TypeName(argument, tnc));
@@ -450,7 +449,7 @@ public class CSharpFormatter : CodeFormatter {
       }
     }
     else if (provider.HasGenericParameters) {
-      sb.Append('<').AppendJoin(", ", provider.GenericParameters.Select(this.GenericParameter)).Append('>');
+      sb.Append('<').AppendJoin(", ", provider.GenericParameters.Select(CSharpFormatter.GenericParameter)).Append('>');
     }
     return sb.ToString();
   }
@@ -1022,7 +1021,7 @@ public class CSharpFormatter : CodeFormatter {
               name = ">>>=";
               break;
             default:
-              if (Constants.FSharpCustomOperatorPattern.IsMatch(op)) {
+              if (Constants.FSharpCustomOperatorPattern().IsMatch(op)) {
                 fsharp = true;
                 name = op.Replace("Amp", "&")
                          .Replace("At", "@")
@@ -1277,13 +1276,13 @@ public class CSharpFormatter : CodeFormatter {
       }
       yield break;
     }
-    if (td.IsClass && td.IsAbstract && td.IsSealed) {
+    if (td is { IsClass: true, IsAbstract: true, IsSealed: true }) {
       sb.Append("static ");
     }
-    else if (td.IsAbstract && !td.IsInterface) {
+    else if (td is { IsAbstract: true, IsInterface: false }) {
       sb.Append("abstract ");
     }
-    else if (td.IsSealed && !td.IsValueType) {
+    else if (td is { IsSealed: true, IsValueType: false }) {
       sb.Append("sealed ");
     }
     if (td.IsEnum) {
@@ -1637,8 +1636,7 @@ public class CSharpFormatter : CodeFormatter {
       sb.Append("delegate* ");
       var returnType = fpt.ReturnType;
       var callingConventions = new List<string>();
-      // https://github.com/jbevain/cecil/issues/842 - no enum entry for this yet
-      if (fpt.CallingConvention == (MethodCallingConvention) 9) {
+      if (fpt.CallingConvention == MethodCallingConvention.Unmanaged) {
         // look for (and drop) modopt(.CallConvXXX) on the return type, keeping the XXXs
         while (returnType is OptionalModifierType omt) {
           var modifier = omt.ModifierType;
@@ -1669,8 +1667,7 @@ public class CSharpFormatter : CodeFormatter {
         case MethodCallingConvention.ThisCall:
           sb.Append("unmanaged[Thiscall] ");
           break;
-        // https://github.com/jbevain/cecil/issues/842 - no enum entry for this yet
-        case (MethodCallingConvention) 9:
+        case MethodCallingConvention.Unmanaged:
           sb.Append("unmanaged");
           if (callingConventions.Count > 0) {
             sb.Append('[').AppendJoin(", ", callingConventions).Append("] ");

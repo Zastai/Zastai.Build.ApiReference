@@ -1,5 +1,10 @@
-﻿using System.Diagnostics.CodeAnalysis;
+﻿using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
+
+using Mono.Cecil;
 
 namespace Zastai.Build.ApiReference;
 
@@ -87,20 +92,16 @@ internal static class CecilUtils {
     return null;
   }
 
-  // FIXME: IReadOnlySet would be better, but is not available on .NET Framework.
-  public static ISet<string> GetRuntimeFeatures(this AssemblyDefinition ad) {
+  public static HashSet<string> GetRuntimeFeatures(this AssemblyDefinition ad) {
     var coreLib = ad.MainModule.TypeSystem.CoreLibrary;
     // FIXME: What this _should_ do is look up System.Runtime.CompilerServices.RuntimeFeature (in the context of coreLib), and
     //        enumerate all its fields, returning a set containing the names of any that are string constants.
     //        However, I have not been able to get that initial type lookup to work, and we currently only care about numeric IntPtr
     //        support, so we just check for .NET 7 or later.
     if (coreLib is AssemblyNameReference { Name: "System.Runtime" } anr && anr.Version >= Version.Parse("7.0")) {
-      return new HashSet<string> {
-        "NumericIntPtr"
-      };
+      return ["NumericIntPtr"];
     }
-    // FIXME: When we drop .NET Framework support, this could be ImmutableHashSet<string>.Empty (not worth the extra dependency now)
-    return new HashSet<string>();
+    return [];
   }
 
   public static string?[]? GetTupleElementNames(this ICustomAttributeProvider? cap) {

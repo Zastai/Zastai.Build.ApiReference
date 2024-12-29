@@ -38,18 +38,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Using Include="System" />
-    <Using Include="System.Collections.Generic" />
-    <Using Include="System.Diagnostics" />
-    <Using Include="System.IO" />
-    <Using Include="System.Text" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Using Include="Mono.Cecil" />
-  </ItemGroup>
-
-  <ItemGroup>
     <None Include="../LICENSE.md">
       <Pack>true</Pack>
       <PackagePath>LICENSE.md</PackagePath>

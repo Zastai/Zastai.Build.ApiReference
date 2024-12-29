@@ -1,4 +1,7 @@
-﻿using System.Linq;
+﻿using System.Collections.Generic;
+using System.Text;
+
+using Mono.Cecil;
 
 namespace Zastai.Build.ApiReference;
 
@@ -6,7 +9,9 @@ public class CSharpMarkdownFormatter : CSharpFormatter {
 
   protected override int TopLevelTypeIndent => 0;
 
-  private static readonly string?[] CodeFooter = { "```" };
+  private static readonly string?[] CodeFooter = [
+    "```"
+  ];
 
   protected override IEnumerable<string?> AssemblyAttributeFooter(AssemblyDefinition ad) => CSharpMarkdownFormatter.CodeFooter;
 
@@ -39,14 +44,14 @@ public class CSharpMarkdownFormatter : CSharpFormatter {
 
   protected override IEnumerable<string?> ModuleAttributeFooter(ModuleDefinition md) => CSharpMarkdownFormatter.CodeFooter;
 
-  protected override IEnumerable<string?>  ModuleAttributeHeader(ModuleDefinition md) {
+  protected override IEnumerable<string?> ModuleAttributeHeader(ModuleDefinition md) {
     yield return null;
     yield return $"## Module Attributes: {md.Name}";
     yield return null;
     yield return "```cs";
   }
 
-  protected override IEnumerable<string?> NamespaceFooter() => Enumerable.Empty<string?>();
+  protected override IEnumerable<string?> NamespaceFooter() => [];
 
   protected override IEnumerable<string?> NamespaceHeader() {
     yield return null;
