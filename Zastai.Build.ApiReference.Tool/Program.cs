@@ -27,7 +27,7 @@ public static class Program {
         resolver.AddSearchDirectory(dir);
       }
       else {
-        Console.Out.WriteLine($"Ignoring non-existent dependency folder: {dir}");
+        Console.Error.WriteLine($"Ignoring non-existent dependency folder: {dir}");
       }
     }
     return new ReaderParameters {
@@ -138,9 +138,8 @@ public static class Program {
     formatter.IncludeCustomAttributes(includedAttributes);
     formatter.IncludeInternals = includeInternals;
     try {
-      using var ad = AssemblyDefinition.ReadAssembly(assembly, Program.CreateReaderParameters(assembly, dependencyPath));
       using var reference = referenceSource == "-" ? Console.Out : new StreamWriter(File.Create(referenceSource), Encoding.UTF8);
-      foreach (var line in formatter.FormatPublicApi(ad)) {
+      foreach (var line in formatter.FormatPublicApi(assembly, Program.CreateReaderParameters(assembly, dependencyPath))) {
         if (line is null) {
           reference.WriteLine();
         }
@@ -159,7 +158,7 @@ public static class Program {
         Console.ForegroundColor = ConsoleColor.White;
         Console.Write(are.AssemblyReference);
         Console.ForegroundColor = ConsoleColor.Yellow;
-        Console.Out.WriteLine("); please provide it using the -r option.");
+        Console.WriteLine("); please provide it using the -r option.");
       }
       finally {
         Console.ForegroundColor = fg;

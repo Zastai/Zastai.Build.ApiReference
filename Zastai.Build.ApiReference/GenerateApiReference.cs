@@ -149,11 +149,9 @@ public sealed class GenerateApiReference : ITask {
     formatter.ExcludeCustomAttributes(excludedAttributes);
     formatter.IncludeCustomAttributes(includedAttributes);
     formatter.IncludeInternals = includeInternals;
-    // TODO: Once the formatter has a TraceSource, configure it to output build events.
     try {
-      using var ad = AssemblyDefinition.ReadAssembly(assembly, this.CreateReaderParameters(assembly, libraryPath));
       using var reference = new StreamWriter(File.Create(referenceSource), Encoding.UTF8);
-      foreach (var line in formatter.FormatPublicApi(ad)) {
+      foreach (var line in formatter.FormatPublicApi(assembly, this.CreateReaderParameters(assembly, libraryPath))) {
         reference.WriteLine(line);
       }
     }

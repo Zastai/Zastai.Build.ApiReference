@@ -41,6 +41,11 @@ public abstract partial class CodeFormatter {
 
   protected abstract string Cast(TypeDefinition targetType, string value);
 
+  public void ClearCustomAttributePatterns() {
+    this._attributesToInclude.Clear();
+    this._attributesToExclude.Clear();
+  }
+
   protected abstract string CustomAttribute(CustomAttribute ca);
 
   protected abstract string CustomAttributeArgument(CustomAttributeArgument value);
@@ -336,6 +341,20 @@ public abstract partial class CodeFormatter {
       yield return line;
     }
     this._runtimeFeatures = null;
+  }
+
+  public IEnumerable<string?> FormatPublicApi(Stream assembly) => this.FormatPublicApi(assembly, new ReaderParameters());
+
+  public IEnumerable<string?> FormatPublicApi(Stream assembly, ReaderParameters parameters) {
+    using var ad = AssemblyDefinition.ReadAssembly(assembly, parameters);
+    return this.FormatPublicApi(ad);
+  }
+
+  public IEnumerable<string?> FormatPublicApi(string assemblyPath) => this.FormatPublicApi(assemblyPath, new ReaderParameters());
+
+  public IEnumerable<string?> FormatPublicApi(string assemblyPath, ReaderParameters parameters) {
+    using var ad = AssemblyDefinition.ReadAssembly(assemblyPath, parameters);
+    return this.FormatPublicApi(ad);
   }
 
   protected abstract string? GenericParameterConstraints(GenericParameter gp);
