@@ -86,17 +86,12 @@ public sealed class GenerateApiReference : ITask {
     CodeFormatter? formatter = null;
     if (!string.IsNullOrWhiteSpace(this.Format)) {
       switch (this.Format.Trim().ToLowerInvariant()) {
-        case "c#":
         case "cs":
         case "csharp":
           formatter = new CSharpFormatter();
           break;
-        case "c#-markdown":
-        case "c#-md":
-        case "cs-markdown":
         case "cs-md":
         case "csharp-markdown":
-        case "csharp-md":
           formatter = new CSharpMarkdownFormatter();
           break;
         default:
@@ -117,7 +112,6 @@ public sealed class GenerateApiReference : ITask {
             handleCharEnums = true;
             break;
           case "hex":
-          case "hex-flags":
             handleHexEnums = true;
             break;
           case "":

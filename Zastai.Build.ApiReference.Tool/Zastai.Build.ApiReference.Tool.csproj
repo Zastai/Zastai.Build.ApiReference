@@ -2,6 +2,7 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
+    <PackAsTool>true</PackAsTool>
     <PlatformTarget>AnyCPU</PlatformTarget>
     <TargetFrameworks>net8.0</TargetFrameworks>
   </PropertyGroup>
@@ -12,20 +13,16 @@
   </PropertyGroup>
 
   <PropertyGroup>
+    <AssemblyName>dotnet-api-reference</AssemblyName>
     <Description>This tool generates an API reference for a .NET assembly, to allow easy API diffs.</Description>
     <PackageIcon>package-icon.png</PackageIcon>
+    <PackageId>$(MSBuildProjectName)</PackageId>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>$(RepositoryUrl)/blob/main/README.md</PackageProjectUrl>
     <PackageReadMeFile>README.md</PackageReadMeFile>
     <PackageTags>C# API Reference</PackageTags>
-    <RootNamespace>Zastai.Build.ApiReference</RootNamespace>
     <Title>API Reference Generator Tool</Title>
     <Version>3.0.0-pre</Version>
-  </PropertyGroup>
-
-  <PropertyGroup>
-    <PackAsTool>true</PackAsTool>
-    <ToolCommandName>dotnet-api-reference</ToolCommandName>
   </PropertyGroup>
 
   <PropertyGroup>
@@ -36,10 +33,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Zastai.Build.ApiReference.Library\Zastai.Build.ApiReference.Library.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Zastai.Build.ApiReference.Library\Zastai.Build.ApiReference.Library.csproj" />
   </ItemGroup>
 
   <ItemGroup>
