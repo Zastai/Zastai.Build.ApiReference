@@ -2,7 +2,7 @@
 
 This project aids in generating a (public) API reference for a .NET
 assembly, in the form of pseudocode (currently only C#) with optional
-MarkDown markup.
+Markdown markup.
 
 This output is not intended to be compilable; rather the intent is for
 it to be kept under source control, so that any changes to public API

@@ -182,7 +182,7 @@ public static class Program {
     Console.WriteLine("                            - hex: use hexadecimal literals for [Flags] enums");
     Console.WriteLine("  -f  FORMAT                Specify the output format");
     Console.WriteLine("                            - csharp / cs: plain C# syntax");
-    Console.WriteLine("                            - csharp-markdown / cs-md: C# syntax with MarkDown");
+    Console.WriteLine("                            - csharp-markdown / cs-md: Markdown with C# code");
     Console.WriteLine("                            (default: csharp)");
     Console.WriteLine("  -ia ATTRIBUTE-TYPE-NAME   Include a particular attribute");
     Console.WriteLine("  -r  DEPENDENCY-DIR        Add a location to search for required references");

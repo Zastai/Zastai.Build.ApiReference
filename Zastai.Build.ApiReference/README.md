@@ -38,7 +38,7 @@ Defaults to `$(TargetDir)`.
 The extension used for the API Reference source.
 
 Defaults to `.cs` when the format is C#, and `.cs.md` when the format is
-MarkDown-with-C#.
+Markdown-with-C#.
 
 ### ApiReferenceOutputPath
 

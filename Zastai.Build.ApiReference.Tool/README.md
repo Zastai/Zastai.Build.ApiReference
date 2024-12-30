@@ -41,8 +41,8 @@ dotnet-api-reference ASSEMBLY OUTPUT-FILE [OPTIONS]
 
 #### `-ea ATTRIBUTE-TYPE-NAME`
 
-Exclude a particular attribute by name. Wildcards are not currently
-supported.
+Exclude a particular attribute by name. Simple shell wildcards (`*` and
+`?`) are supported.
 
 Names match against the full internal name of the attribute type (like
 ``Namespace.GenericTypeName`2/NestedAttribute``).
@@ -66,18 +66,18 @@ Activate specific enum handling (one or more flags, comma-separated).
 
 Specifies the format for the API reference source.
 
-| `FORMAT` Value              | Description             |
-|:----------------------------|:------------------------|
-| `csharp` / `cs`             | plain C# syntax         |
-| `csharp-markdown` / `cs-md` | C# syntax with MarkDown |
+| `FORMAT` Value              | Description                  |
+|:----------------------------|:-----------------------------|
+| `csharp` / `cs`             | plain C# syntax              |
+| `csharp-markdown` / `cs-md` | Markdown with C# code blocks |
 
 If not specified, plain C# will be used.
 
 #### `-ia ATTRIBUTE-TYPE-NAME`
 
-Include a particular attribute by name. Wildcards are not currently
-supported. If this is specified, all attributes not explicitly included
-will be excluded by default.
+Include a particular attribute by name. Simple shell wildcards (`*` and
+`?`) are supported. If this is specified, all attributes not explicitly
+included will be excluded by default.
 
 Names match against the full internal name of the attribute type (like
 ``Namespace.GenericTypeName`2/NestedAttribute``).
