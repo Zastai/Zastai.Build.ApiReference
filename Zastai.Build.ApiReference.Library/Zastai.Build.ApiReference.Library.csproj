@@ -26,7 +26,7 @@
   </PropertyGroup>
 
   <PropertyGroup>
-<!--    <GenerateDocumentationFile>true</GenerateDocumentationFile>-->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
     <ImplicitUsings>disable</ImplicitUsings>
     <LangVersion>12</LangVersion>
