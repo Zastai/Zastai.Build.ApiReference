@@ -726,7 +726,7 @@ public abstract partial class CodeFormatter {
     }
     var nestedTypes = new SortedDictionary<string, TypeDefinition>();
     foreach (var type in td.NestedTypes) {
-      if (!this.ShouldInclude(td)) {
+      if (!this.ShouldInclude(type)) {
         continue;
       }
       if (nestedTypes.TryGetValue(type.Name, out var previousType)) {
