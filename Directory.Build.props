@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project>
+
+  <!-- Chain to parent settings. -->
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('$(MSBuildThisFile)', '$(MSBuildThisFileDirectory)..'))"
+          Condition=" Exists($([MSBuild]::GetPathOfFileAbove('$(MSBuildThisFile)', '$(MSBuildThisFileDirectory)..'))) "/>
+
+  <PropertyGroup>
+    <Copyright>Copyright © 2022, 2023, 2024 Tim Van Holder. All rights reserved.</Copyright>
+    <RepositoryUrl>https://github.com/Zastai/Zastai.Build.ApiReference</RepositoryUrl>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <PackageIcon>package-icon.png</PackageIcon>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>$(RepositoryUrl)/blob/main/README.md</PackageProjectUrl>
+    <PackageReadMeFile>README.md</PackageReadMeFile>
+    <Version>3.0.0-pre</Version>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <LangVersion>12</LangVersion>
+    <Nullable>enable</Nullable>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <_ReadMeFile>README.md</_ReadMeFile>
+    <_ReadMeFile Condition=" !Exists('$(_ReadMeFile)') ">$(MSBuildThisFileDirectory)\README.md</_ReadMeFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Pack="true" PackagePath="" Include="$(MSBuildThisFileDirectory)\LICENSE.md"/>
+    <None Pack="true" PackagePath="" Include="$(MSBuildThisFileDirectory)\package-icon.png"/>
+    <None Pack="true" PackagePath="" Include="$(_ReadMeFile)"/>
+  </ItemGroup>
+
+</Project>

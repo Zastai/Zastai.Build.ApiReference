@@ -1,4 +1,4 @@
-# dotnet-api-reference [![Build Status][CI-S]][CI-L] [![NuGet Package Version][NuGet-S]][NuGet-L]
+# Zastai.Build.ApiReference.Tool [![Build Status][CI-S]][CI-L] [![NuGet Package Version][NuGet-S]][NuGet-L]
 
 This is a simple command-line tool to enable generating an API reference
 source for a .NET assembly.
@@ -10,7 +10,7 @@ source for a .NET assembly.
 To install the tool as part of a specific solution, run
 
 ```pwsh
-dotnet tool install dotnet-api-reference --create-manifest-if-needed
+dotnet tool install Zastai.Build.ApiReference.Tool --create-manifest-if-needed
 ```
 
 from the solution folder. This will create a tool manifest
@@ -26,7 +26,7 @@ When committed, the tool manifest allows using `dotnet tool restore` to
 To install it globally, for use anywhere on the machine, run
 
 ```pwsh
-dotnet tool install -g dotnet-api-reference
+dotnet tool install -g Zastai.Build.ApiReference.Tool
 ```
 
 This will enable running the tool using just `dotnet-api-reference`.

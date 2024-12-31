@@ -1,26 +1,15 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <PlatformTarget>AnyCPU</PlatformTarget>
-    <TargetFrameworks>netstandard2.0</TargetFrameworks>
-  </PropertyGroup>
-
-  <PropertyGroup>
-    <Copyright>Copyright © 2022, 2023, 2024 Tim Van Holder. All rights reserved.</Copyright>
-    <RepositoryUrl>https://github.com/Zastai/Zastai.Build.ApiReference</RepositoryUrl>
+    <TargetFramework>netstandard2.0</TargetFramework>
   </PropertyGroup>
 
   <PropertyGroup>
     <Description>This package generates an API reference for the project it's added to, to allow easy API diffs.</Description>
     <DevelopmentDependency>true</DevelopmentDependency>
-    <PackageIcon>package-icon.png</PackageIcon>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageProjectUrl>$(RepositoryUrl)/blob/main/README.md</PackageProjectUrl>
-    <PackageReadMeFile>README.md</PackageReadMeFile>
     <PackageTags>C# API Reference</PackageTags>
     <PackageType>Dependency</PackageType>
     <Title>API Reference Generator</Title>
-    <Version>3.0.0-pre</Version>
   </PropertyGroup>
 
   <PropertyGroup>
@@ -32,13 +21,6 @@
     <BuildOutputTargetFolder>build</BuildOutputTargetFolder>
     <!-- However, that then triggers thr NU5128 warning (and possibly NU5100 too). -->
     <NoWarn>$(NoWarn);NU5100;NU5128</NoWarn>
-  </PropertyGroup>
-
-  <PropertyGroup>
-    <EmbedUntrackedSources>true</EmbedUntrackedSources>
-    <ImplicitUsings>disable</ImplicitUsings>
-    <LangVersion>12</LangVersion>
-    <Nullable>enable</Nullable>
   </PropertyGroup>
 
   <ItemGroup>
@@ -53,18 +35,6 @@
     <None Include="build/*.props;build/*.targets">
       <Pack>true</Pack>
       <PackagePath>build/%(Filename)%(Extension)</PackagePath>
-    </None>
-    <None Include="../LICENSE.md">
-      <Pack>true</Pack>
-      <PackagePath>LICENSE.md</PackagePath>
-    </None>
-    <None Include="README.md">
-      <Pack>true</Pack>
-      <PackagePath>README.md</PackagePath>
-    </None>
-    <None Include="../package-icon.png">
-      <Pack>true</Pack>
-      <PackagePath/>
     </None>
   </ItemGroup>
 

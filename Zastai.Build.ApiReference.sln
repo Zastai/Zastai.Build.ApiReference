@@ -11,6 +11,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Support Files", "Support Fi
 		build-package.ps1 = build-package.ps1
 		Directory.Packages.props = Directory.Packages.props
 		README.md = README.md
+		Directory.Build.props = Directory.Build.props
+		LICENSE.md = LICENSE.md
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "GitHub", "GitHub", "{9D3966CD-4AE3-48BF-A058-4AF07F6FDCD2}"
