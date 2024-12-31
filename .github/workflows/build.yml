@@ -15,6 +15,9 @@ jobs:
     runs-on: ubuntu-latest
     env:
       dotnet-version: 9.0.x
+    permissions:
+      id-token: write
+      attestations: write
     strategy:
       matrix:
         configuration: ['Debug', 'Release']
@@ -44,9 +47,14 @@ jobs:
       with:
         name: NuGet Packages (${{matrix.configuration}})
         path: "**/bin/${{matrix.configuration}}/*.nupkg"
-    - name: Publish (NuGet - GitHub Packages)
+    - name: "Attestations: NuGet Packages"
+      if: matrix.configuration == 'Release' && startsWith(github.ref, 'refs/tags/v')
+      uses: actions/attest-build-provenance@v2
+      with:
+        subject-path: "**/bin/${{matrix.configuration}}/*.nupkg"
+    - name: "Publish: GitHub Packages"
       if: matrix.configuration == 'Release' && startsWith(github.ref, 'refs/tags/v')
       run: "dotnet nuget push */bin/${{matrix.configuration}}/*.nupkg -s https://nuget.pkg.github.com/zastai/index.json -k ${{secrets.GITHUB_TOKEN}}"
-    - name: Publish (NuGet - nuget.org)
+    - name: "Publish: nuget.org"
       if: matrix.configuration == 'Release' && startsWith(github.ref, 'refs/tags/v')
       run: "dotnet nuget push */bin/${{matrix.configuration}}/*.nupkg -s https://api.nuget.org/v3/index.json -k ${{secrets.NUGET_API_KEY}}"
