@@ -15,7 +15,7 @@
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>$(RepositoryUrl)/blob/main/README.md</PackageProjectUrl>
     <PackageReadMeFile>README.md</PackageReadMeFile>
-    <Version>3.0.0</Version>
+    <Version>3.0.1-pre</Version>
   </PropertyGroup>
 
   <PropertyGroup>
