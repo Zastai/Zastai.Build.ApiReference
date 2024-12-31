@@ -16,8 +16,9 @@ jobs:
     env:
       dotnet-version: 9.0.x
     permissions:
-      id-token: write
       attestations: write
+      id-token: write
+      packages: write
     strategy:
       matrix:
         configuration: ['Debug', 'Release']
@@ -54,7 +55,7 @@ jobs:
         subject-path: "**/bin/${{matrix.configuration}}/*.nupkg"
     - name: "Publish: GitHub Packages"
       if: matrix.configuration == 'Release' && startsWith(github.ref, 'refs/tags/v')
-      run: "dotnet nuget push */bin/${{matrix.configuration}}/*.nupkg -s https://nuget.pkg.github.com/zastai/index.json -k ${{secrets.GITHUB_TOKEN}}"
+      run: "dotnet nuget push */bin/${{matrix.configuration}}/*.nupkg --skip-duplicate -k ${{secrets.GITHUB_TOKEN}} -s https://nuget.pkg.github.com/zastai/index.json"
     - name: "Publish: nuget.org"
       if: matrix.configuration == 'Release' && startsWith(github.ref, 'refs/tags/v')
-      run: "dotnet nuget push */bin/${{matrix.configuration}}/*.nupkg -s https://api.nuget.org/v3/index.json -k ${{secrets.NUGET_API_KEY}}"
+      run: "dotnet nuget push */bin/${{matrix.configuration}}/*.nupkg --skip-duplicate -k ${{secrets.GITHUB_TOKEN}} -s https://api.nuget.org/v3/index.json"
