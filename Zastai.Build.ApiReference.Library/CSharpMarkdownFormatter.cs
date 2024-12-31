@@ -1,15 +1,21 @@
-﻿using System.Linq;
+﻿using System.Collections.Generic;
+using System.Text;
+
+using Mono.Cecil;
 
 namespace Zastai.Build.ApiReference;
 
-internal class CSharpMarkdownFormatter : CSharpFormatter {
+/// <summary>A class that will extract and format the public API for an assembly as Markdown with C# code blocks.</summary>
+public class CSharpMarkdownFormatter : CSharpFormatter {
 
-  protected override int TopLevelTypeIndent => 0;
+  private static readonly string?[] CodeFooter = [
+    "```"
+  ];
 
-  private static readonly string?[] CodeFooter = { "```" };
-
+  /// <inheritdoc />
   protected override IEnumerable<string?> AssemblyAttributeFooter(AssemblyDefinition ad) => CSharpMarkdownFormatter.CodeFooter;
 
+  /// <inheritdoc />
   protected override IEnumerable<string?> AssemblyAttributeHeader(AssemblyDefinition ad) {
     yield return null;
     yield return "## Assembly Attributes";
@@ -17,6 +23,7 @@ internal class CSharpMarkdownFormatter : CSharpFormatter {
     yield return "```cs";
   }
 
+  /// <inheritdoc />
   protected override IEnumerable<string?> ExportedTypes(SortedDictionary<string, IDictionary<string, ExportedType>> exportedTypes) {
     yield return null;
     yield return "## Exported Types";
@@ -33,28 +40,32 @@ internal class CSharpMarkdownFormatter : CSharpFormatter {
     }
   }
 
+  /// <inheritdoc />
   protected override IEnumerable<string?> FileHeader(AssemblyDefinition ad) {
     yield return $"# API Reference: {ad.Name.Name}";
   }
 
+  /// <inheritdoc />
   protected override IEnumerable<string?> ModuleAttributeFooter(ModuleDefinition md) => CSharpMarkdownFormatter.CodeFooter;
 
-  protected override IEnumerable<string?>  ModuleAttributeHeader(ModuleDefinition md) {
+  /// <inheritdoc />
+  protected override IEnumerable<string?> ModuleAttributeHeader(ModuleDefinition md) {
     yield return null;
     yield return $"## Module Attributes: {md.Name}";
     yield return null;
     yield return "```cs";
   }
 
-  protected override IEnumerable<string?> NamespaceFooter() => Enumerable.Empty<string?>();
-
+  /// <inheritdoc />
   protected override IEnumerable<string?> NamespaceHeader() {
     yield return null;
     yield return string.IsNullOrEmpty(this.CurrentNamespace) ? "## Unnamed Namespace" : $"## Namespace: {this.CurrentNamespace}";
   }
 
+  /// <inheritdoc />
   protected override IEnumerable<string?> TypeFooter(TypeDefinition td) => CSharpMarkdownFormatter.CodeFooter;
 
+  /// <inheritdoc />
   protected override IEnumerable<string?> TypeHeader(TypeDefinition td) {
     yield return null;
     yield return $"### Type: {this.TypeName(td).Replace("<", "\\<")}";

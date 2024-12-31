@@ -1,13 +1,14 @@
-﻿using JetBrains.Annotations;
+﻿using System;
 
 namespace Zastai.Build.ApiReference;
 
 /// <summary>General utilities.</summary>
-[PublicAPI]
 internal static class Utils {
 
+  private static readonly char[] Wildcards = ['*', '?'];
+
   public static bool Matches(this string text, string pattern) {
-    if (pattern.IndexOfAny(new[] { '*', '?' }) < 0) {
+    if (pattern.IndexOfAny(Utils.Wildcards) < 0) {
       return text == pattern;
     }
     var textLength = text.Length;

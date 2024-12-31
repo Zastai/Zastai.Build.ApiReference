@@ -1,46 +1,78 @@
+using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Text;
+
+using Mono.Cecil;
 
 namespace Zastai.Build.ApiReference;
 
-internal class CSharpFormatter : CodeFormatter {
+/// <summary>A class that will extract and format the public API for an assembly as plain C# code.</summary>
+public class CSharpFormatter : CodeFormatter {
 
-  protected sealed class TypeNameContext {
+  /// <summary>
+  /// A context for typename-related attribute lookups. These lookups include nullability (for nullable reference types),
+  /// <c>dynamic</c> and native integers.
+  /// </summary>
+  /// <param name="main">The main source of custom attributes for this context.</param>
+  /// <param name="method">The enclosing method for this context, if applicable.</param>
+  /// <param name="type">The enclosing type for this context, if applicable.</param>
+  /// <remarks>
+  /// 3 things we care about are handled by attributes on the context:
+  /// <list type="bullet">
+  ///   <item>
+  ///     <c>[Dynamic]</c>, to distinguish <c>dynamic</c> from <c>object</c>.
+  ///     <list type="bullet">
+  ///       <item>In simple/normal context this has no arguments.</item>
+  ///       <item>
+  ///         In a context with multiple types (<c>dynamic[]</c>, tuple, ...) it has an array with 1 <c>bool</c> argument per type.
+  ///       </item>
+  ///     </list>
+  ///   </item>
+  ///   <item>
+  ///     <c>[NativeInteger]</c>, to distinguish <c>nint</c>/<c>nuint</c> from <c>IntPtr</c>/<c>UIntPtr</c>.
+  ///     <list type="bullet">
+  ///       <item>In simple/normal context this has no arguments.</item>
+  ///       <item>In a context with multiple types it has an array with 1 bool argument per <c>IntPtr</c>/<c>UIntPtr</c>.</item>
+  ///     </list>
+  ///   </item>
+  ///   <item>
+  ///     <c>[Nullable]</c>, for nullable reference types.
+  ///     <list type="bullet">
+  ///       <item>Has an array with one byte argument per reference type or generic value type.</item>
+  ///       <item>If all those bytes are the same, it can also have a single byte as value instead.</item>
+  ///       <item>If not present, <c>[NullableContext]</c> is checked on enclosing method/types (always single value).</item>
+  ///     </list>
+  ///   </item>
+  /// </list>
+  /// Because the systems differ, we need to keep track of separate indexes for each case.
+  /// </remarks>
+  protected sealed class TypeNameContext(ICustomAttributeProvider? main, MethodDefinition? method = null,
+                                         TypeDefinition? type = null) {
 
-    public TypeNameContext(ICustomAttributeProvider? main, MethodDefinition? method = null, TypeDefinition? type = null) {
-      this.Main = main;
-      this.Method = method;
-      this.Type = type;
-    }
+    /// <summary>The main source of custom attributes for this context.</summary>
+    public readonly ICustomAttributeProvider? Main = main;
 
-    public readonly ICustomAttributeProvider? Main;
+    /// <summary>The enclosing method for this context, if applicable.</summary>
+    public readonly MethodDefinition? Method = method;
 
-    public readonly MethodDefinition? Method;
+    /// <summary>The enclosing type for this context, if applicable.</summary>
+    public readonly TypeDefinition? Type = type;
 
-    public readonly TypeDefinition? Type;
-
-    // 3 things we care about are handled by attributes on the context:
-    // - [Dynamic] to distinguish `dynamic` from `object`
-    //   - in simple/normal context this has no arguments
-    //   - in a context with multiple types (`dynamic[]`, tuple, ...) it has an array with 1 bool argument per type
-    // - [NativeInteger] to distinguish n[u]int from [U]IntPtr
-    //   - in simple/normal context this has no arguments
-    //   - in a context with multiple types it has an array with 1 bool argument per `[U]IntPtr`
-    // - [Nullable] for nullable reference types
-    //   - has an array with one byte argument per reference type or generic value type
-    //   - if all those bytes are the same, it can also have a single byte as value instead
-    //   - if not present, [NullableContext] on parent method/types is checked (always single value)
-    // As a result, we need to keep track of separate indexes for each type.
-
+    /// <summary>The current value index for <c>[Dynamic]</c> attribute checks.</summary>
     public int DynamicIndex;
 
+    /// <summary>The current value index for <c>[NativeInteger]</c> attribute checks.</summary>
     public int IntegerIndex;
 
+    /// <summary>The current value index for <c>[Nullable]</c> attribute checks.</summary>
     public int NullableIndex;
 
   }
 
+  /// <inheritdoc />
   protected override string AssemblyAttributeLine(string attribute) => $"[assembly: {attribute}]";
 
   private string Attributes(MethodDefinition md) {
@@ -82,17 +114,19 @@ internal class CSharpFormatter : CodeFormatter {
     else if (md.IsVirtual) {
       // For some reason, static virtual methods in interfaces have IsReuseSlot set; that's currently the only situation where
       // static+virtual is valid, so we can just look at IsStatic to ignore the IsReuseSlot.
-      var isOverride = (md.IsReuseSlot && !md.IsStatic) || (md.IsNewSlot && md.HasCovariantReturn());
+      var isOverride = md is { IsReuseSlot: true, IsStatic: false } || (md.IsNewSlot && md.HasCovariantReturn());
       sb.Append(isOverride ? "override " : "virtual ");
     }
     return sb.ToString();
   }
 
+  /// <inheritdoc />
   protected override string Cast(TypeDefinition targetType, string value) {
     // FIXME: Does this need a context?
     return $"({this.TypeName(targetType)}) {value}";
   }
 
+  /// <inheritdoc />
   protected override string CustomAttribute(CustomAttribute ca) {
     var sb = new StringBuilder();
     sb.Append(this.TypeName(ca.AttributeType));
@@ -107,6 +141,7 @@ internal class CSharpFormatter : CodeFormatter {
     return sb.ToString();
   }
 
+  /// <inheritdoc />
   protected override string CustomAttributeArgument(CustomAttributeArgument argument) {
     // Sometimes there's multiple levels of CustomAttributeArgument; mainly seems to be for cases where the argument is declared as
     // "object", where the outer CAA is of type System.Object and the inner one has the "real" argument type and value.
@@ -122,7 +157,8 @@ internal class CSharpFormatter : CodeFormatter {
     return this.Value(argument.Type, argument.Value);
   }
 
-  protected override IEnumerable<string?> CustomAttributes(ICustomAttributeProvider cap, int indent) {
+  /// <inheritdoc />
+  protected override IEnumerable<string> CustomAttributes(ICustomAttributeProvider cap, int indent) {
     if (!cap.HasCustomAttributes) {
       yield break;
     }
@@ -134,6 +170,9 @@ internal class CSharpFormatter : CodeFormatter {
     }
   }
 
+  /// <summary>Formats custom attributes for inline use (like for method parameters).</summary>
+  /// <param name="cap">The custom attribute provider.</param>
+  /// <returns>The formatted custom attributes, all on one line (for inline use).</returns>
   protected virtual string CustomAttributesInline(ICustomAttributeProvider cap) {
     if (!cap.HasCustomAttributes) {
       return "";
@@ -147,6 +186,7 @@ internal class CSharpFormatter : CodeFormatter {
     return sb.ToString();
   }
 
+  /// <inheritdoc />
   protected override string EnumField(FieldDefinition fd, int indent, EnumFieldValueMode mode, int highestBit) {
     var sb = new StringBuilder();
     sb.Append(' ', indent);
@@ -162,7 +202,7 @@ internal class CSharpFormatter : CodeFormatter {
       else {
         switch (mode) {
           case EnumFieldValueMode.Binary: {
-            var width = 4 * (1 + ((highestBit - 1) / 4));
+            var width = 4 * (1 + (highestBit / 4));
 #if NET8_0_OR_GREATER
             var format = $"B{width}";
             var text = fd.Constant switch {
@@ -214,7 +254,7 @@ internal class CSharpFormatter : CodeFormatter {
             }
             break;
           case EnumFieldValueMode.Hexadecimal: {
-            var format = $"X{1 + ((highestBit - 1) / 4)}";
+            var format = $"X{1 + (highestBit / 4)}";
             var text = fd.Constant switch {
               byte u8 => u8.ToString(format),
               int i32 => i32.ToString(format),
@@ -260,8 +300,10 @@ internal class CSharpFormatter : CodeFormatter {
     return sb.ToString();
   }
 
+  /// <inheritdoc />
   protected override string EnumValue(TypeDefinition enumType, string name) => $"{this.TypeName(enumType)}.{name}";
 
+  /// <inheritdoc />
   protected override string Event(EventDefinition ed, int indent) {
     var sb = new StringBuilder();
     sb.Append(' ', indent)
@@ -270,6 +312,7 @@ internal class CSharpFormatter : CodeFormatter {
     return sb.ToString();
   }
 
+  /// <inheritdoc />
   protected override IEnumerable<string?> ExportedTypes(SortedDictionary<string, IDictionary<string, ExportedType>> exportedTypes) {
     var sb = new StringBuilder();
     foreach (var scope in exportedTypes) {
@@ -284,6 +327,7 @@ internal class CSharpFormatter : CodeFormatter {
     }
   }
 
+  /// <inheritdoc />
   protected override string Field(FieldDefinition fd, int indent) {
     var sb = new StringBuilder();
     sb.Append(' ', indent);
@@ -345,7 +389,7 @@ internal class CSharpFormatter : CodeFormatter {
     return sb.ToString();
   }
 
-  private string GenericParameter(GenericParameter gp) {
+  private static string GenericParameter(GenericParameter gp) {
     var sb = new StringBuilder();
     if (gp.IsCovariant) {
       sb.Append("out ");
@@ -357,10 +401,11 @@ internal class CSharpFormatter : CodeFormatter {
     return sb.ToString();
   }
 
+  /// <inheritdoc />
   protected override string? GenericParameterConstraints(GenericParameter gp) {
     // Some constraints (like "class" and "new()") are stored as attributes.
     // Similarly, a [Nullable] seems to be used for the "notnull" constraint, and to distinguish between "class" and "class?".
-    if (!gp.HasConstraints && !gp.HasReferenceTypeConstraint && !gp.HasDefaultConstructorConstraint) {
+    if (gp is { HasConstraints: false, HasReferenceTypeConstraint: false, HasDefaultConstructorConstraint: false }) {
       return null;
     }
     var sb = new StringBuilder();
@@ -416,14 +461,13 @@ internal class CSharpFormatter : CodeFormatter {
       sb.Append(isUnmanaged ? "unmanaged" : "struct");
       first = false;
     }
-    if (gp.HasDefaultConstructorConstraint && !gp.HasNotNullableValueTypeConstraint) {
+    if (gp is { HasDefaultConstructorConstraint: true, HasNotNullableValueTypeConstraint: false }) {
       if (!first) {
         sb.Append(", ");
       }
       sb.Append("new()");
     }
-    // Hopefully at some point: if (gp.AllowsByRefLike / gp.HasAllowByRefLike)
-    if (((int) gp.Attributes & 0x20) != 0) {
+    if (gp.AllowByRefLikeConstraint) {
       if (!first) {
         sb.Append(", ");
       }
@@ -432,6 +476,10 @@ internal class CSharpFormatter : CodeFormatter {
     return sb.ToString();
   }
 
+  /// <summary>Formats a set of generic type parameters (or arguments).</summary>
+  /// <param name="provider">The provider for the generic parameters (or arguments).</param>
+  /// <param name="tnc">The applicable type name context.</param>
+  /// <returns>The formatted generic parameters (enclosed in angle brackets), or the empty string if there aren't any.</returns>
   protected virtual string GenericParameters(IGenericParameterProvider provider, TypeNameContext tnc) {
     var sb = new StringBuilder();
     if (provider is IGenericInstance gi) {
@@ -440,7 +488,7 @@ internal class CSharpFormatter : CodeFormatter {
         var arguments = new List<string>();
         foreach (var argument in gi.GenericArguments) {
           if (argument is GenericParameter gp) {
-            arguments.Add(this.GenericParameter(gp));
+            arguments.Add(CSharpFormatter.GenericParameter(gp));
           }
           else {
             arguments.Add(this.TypeName(argument, tnc));
@@ -450,11 +498,12 @@ internal class CSharpFormatter : CodeFormatter {
       }
     }
     else if (provider.HasGenericParameters) {
-      sb.Append('<').AppendJoin(", ", provider.GenericParameters.Select(this.GenericParameter)).Append('>');
+      sb.Append('<').AppendJoin(", ", provider.GenericParameters.Select(CSharpFormatter.GenericParameter)).Append('>');
     }
     return sb.ToString();
   }
 
+  /// <inheritdoc />
   protected override bool IsHandledBySyntax(ICustomAttribute ca) {
     var at = ca.AttributeType;
     if (at is null) {
@@ -533,12 +582,16 @@ internal class CSharpFormatter : CodeFormatter {
     return false;
   }
 
+  /// <inheritdoc />
   protected override string LineComment(string comment) => $"// {comment}".TrimEnd();
 
+  /// <inheritdoc />
   protected override string Literal(bool value) => value ? "true" : "false";
 
+  /// <inheritdoc />
   protected override string Literal(byte value) => "(byte) " + value.ToString(CultureInfo.InvariantCulture);
 
+  /// <inheritdoc />
   protected override string Literal(char value) {
     switch (value) {
       case '\0':
@@ -570,19 +623,21 @@ internal class CSharpFormatter : CodeFormatter {
     return numericValue < 0x100 ? $"'\\x{numericValue:X2}'" : $"'\\u{numericValue:X4}'";
   }
 
+  /// <inheritdoc />
   protected override string Literal(decimal value) => value switch {
     decimal.MaxValue => "decimal.MaxValue",
     decimal.MinValue => "decimal.MinValue",
     _ => value.ToString(CultureInfo.InvariantCulture) + 'M'
   };
 
+  /// <inheritdoc />
   protected override string Literal(double value) => value switch {
     Math.E => "Math.E",
     Math.PI => "Math.PI",
-#if NETFRAMEWORK
-    6.283185307179586476925 => "Math.Tau",
-#else
+#if NET
     Math.Tau => "Math.Tau",
+#else
+    6.283185307179586476925 => "Math.Tau",
 #endif
     double.Epsilon => "double.Epsilon",
     double.MaxValue => "double.MaxValue",
@@ -593,15 +648,16 @@ internal class CSharpFormatter : CodeFormatter {
     _ => value.ToString("G17", CultureInfo.InvariantCulture) + 'D'
   };
 
+  /// <inheritdoc />
   protected override string Literal(float value) => value switch {
-#if NETFRAMEWORK
-    2.71828183F => "MathF.E",
-    3.14159265F => "MathF.PI",
-    6.283185307F => "MathF.Tau",
-#else
+#if NET
     MathF.E => "MathF.E",
     MathF.PI => "MathF.PI",
     MathF.Tau => "MathF.Tau",
+#else
+    2.71828183F => "MathF.E",
+    3.14159265F => "MathF.PI",
+    6.283185307F => "MathF.Tau",
 #endif
     float.Epsilon => "float.Epsilon",
     float.MaxValue => "float.MaxValue",
@@ -612,14 +668,19 @@ internal class CSharpFormatter : CodeFormatter {
     _ => value.ToString("G9", CultureInfo.InvariantCulture) + 'F'
   };
 
+  /// <inheritdoc />
   protected override string Literal(int value) => value.ToString(CultureInfo.InvariantCulture);
 
+  /// <inheritdoc />
   protected override string Literal(long value) => value.ToString(CultureInfo.InvariantCulture) + "L";
 
+  /// <inheritdoc />
   protected override string Literal(sbyte value) => "(sbyte) " + value.ToString(CultureInfo.InvariantCulture);
 
+  /// <inheritdoc />
   protected override string Literal(short value) => "(short) " + value.ToString(CultureInfo.InvariantCulture);
 
+  /// <inheritdoc />
   protected override string Literal(string value) {
     var sb = new StringBuilder();
     sb.Append('"');
@@ -670,12 +731,16 @@ internal class CSharpFormatter : CodeFormatter {
     return sb.ToString();
   }
 
+  /// <inheritdoc />
   protected override string Literal(uint value) => value.ToString(CultureInfo.InvariantCulture) + "U";
 
+  /// <inheritdoc />
   protected override string Literal(ulong value) => value.ToString(CultureInfo.InvariantCulture) + "UL";
 
+  /// <inheritdoc />
   protected override string Literal(ushort value) => "(ushort) " + value.ToString(CultureInfo.InvariantCulture);
 
+  /// <inheritdoc />
   protected override IEnumerable<string?> Method(MethodDefinition md, int indent) {
     foreach (var customAttribute in this.CustomAttributes(md, indent)) {
       yield return customAttribute;
@@ -756,6 +821,7 @@ internal class CSharpFormatter : CodeFormatter {
     }
   }
 
+  /// <inheritdoc />
   protected override string MethodName(MethodDefinition md, out string returnTypeName) {
     returnTypeName = this.TypeName(md.ReturnType, md.MethodReturnType);
     if (md.IsRuntimeSpecialName) {
@@ -1022,7 +1088,7 @@ internal class CSharpFormatter : CodeFormatter {
               name = ">>>=";
               break;
             default:
-              if (Constants.FSharpCustomOperatorPattern.IsMatch(op)) {
+              if (Constants.FSharpCustomOperatorPattern().IsMatch(op)) {
                 fsharp = true;
                 name = op.Replace("Amp", "&")
                          .Replace("At", "@")
@@ -1078,20 +1144,22 @@ internal class CSharpFormatter : CodeFormatter {
     return md.Name;
   }
 
+  /// <inheritdoc />
   protected override string ModuleAttributeLine(string attribute) => $"[module: {attribute}]";
 
-  protected override IEnumerable<string?> NamespaceFooter() {
-    yield return null;
-    yield return "}";
-  }
-
+  /// <inheritdoc />
   protected override IEnumerable<string?> NamespaceHeader() {
+    if (string.IsNullOrEmpty(this.CurrentNamespace)) {
+      yield break;
+    }
     yield return null;
-    yield return $"namespace {this.CurrentNamespace} {{";
+    yield return $"namespace {this.CurrentNamespace};";
   }
 
+  /// <inheritdoc />
   protected override string Null() => "null";
 
+  /// <inheritdoc />
   protected override string Or() => "|";
 
   private string Parameter(ParameterDefinition pd) {
@@ -1155,6 +1223,7 @@ internal class CSharpFormatter : CodeFormatter {
     return sb.ToString();
   }
 
+  /// <inheritdoc />
   protected override IEnumerable<string?> Property(PropertyDefinition pd, int indent) {
     foreach (var line in this.CustomAttributes(pd, indent)) {
       yield return line;
@@ -1218,11 +1287,13 @@ internal class CSharpFormatter : CodeFormatter {
     yield return sb.ToString();
   }
 
+  /// <inheritdoc />
   protected override string PropertyName(PropertyDefinition pd) {
     // FIXME: Or should this only be done when the type has [System.Reflection.DefaultMemberAttribute("Item")]?
     return pd is { HasParameters: true, Name: "Item" } ? "this" : pd.Name;
   }
 
+  /// <inheritdoc />
   protected override IEnumerable<string?> Type(TypeDefinition td, int indent) {
     foreach (var line in this.CustomAttributes(td, indent)) {
       yield return line;
@@ -1277,13 +1348,13 @@ internal class CSharpFormatter : CodeFormatter {
       }
       yield break;
     }
-    if (td.IsClass && td.IsAbstract && td.IsSealed) {
+    if (td is { IsClass: true, IsAbstract: true, IsSealed: true }) {
       sb.Append("static ");
     }
-    else if (td.IsAbstract && !td.IsInterface) {
+    else if (td is { IsAbstract: true, IsInterface: false }) {
       sb.Append("abstract ");
     }
-    else if (td.IsSealed && !td.IsValueType) {
+    else if (td is { IsSealed: true, IsValueType: false }) {
       sb.Append("sealed ");
     }
     if (td.IsEnum) {
@@ -1308,7 +1379,7 @@ internal class CSharpFormatter : CodeFormatter {
     else { // What else can it be?
       sb.Append($"/* type with unsupported classification: {td.Attributes} */");
     }
-    // Note: The definition is NOT passed as context here (otherwise [NullableContext(2)] causes "public class Foo?".
+    // Note: The definition is NOT passed as context here (otherwise [NullableContext(2)] causes "public class Foo?").
     sb.Append(' ').Append(this.TypeName(td));
     {
       var baseType = td.BaseType;
@@ -1389,6 +1460,12 @@ internal class CSharpFormatter : CodeFormatter {
     yield return sb.ToString();
   }
 
+  /// <summary>Formats the type name for an exported type.</summary>
+  /// <param name="et">The exported type.</param>
+  /// <returns>The formatted type name.</returns>
+  /// <remarks>
+  /// There is no provision for generic parameters on <see cref="ExportedType"/>, so this will have the "ugly name" (<c>Foo`3</c>).
+  /// </remarks>
   protected virtual string TypeName(ExportedType et) {
     var sb = new StringBuilder();
     if (et.DeclaringType is not null) {
@@ -1397,12 +1474,12 @@ internal class CSharpFormatter : CodeFormatter {
     else if (!string.IsNullOrEmpty(et.Namespace)) {
       sb.Append(et.Namespace).Append('.');
     }
-    // There is no provision for generic parameters on ExportedType, so this will have the "ugly name" (Foo`3).
-    // We _could_ detect that and map it to Foo<T1, T2, T3> here.
+    // FIXME: We could detect Foo`4 here and emit Foo<T1, T2, T3, T4>.
     sb.Append(et.Name);
     return sb.ToString();
   }
 
+  /// <inheritdoc />
   protected override string TypeName(TypeReference tr, ICustomAttributeProvider? context = null,
                                      MethodDefinition? methodContext = null, TypeDefinition? typeContext = null) {
     var prefix = "";
@@ -1637,8 +1714,7 @@ internal class CSharpFormatter : CodeFormatter {
       sb.Append("delegate* ");
       var returnType = fpt.ReturnType;
       var callingConventions = new List<string>();
-      // https://github.com/jbevain/cecil/issues/842 - no enum entry for this yet
-      if (fpt.CallingConvention == (MethodCallingConvention) 9) {
+      if (fpt.CallingConvention == MethodCallingConvention.Unmanaged) {
         // look for (and drop) modopt(.CallConvXXX) on the return type, keeping the XXXs
         while (returnType is OptionalModifierType omt) {
           var modifier = omt.ModifierType;
@@ -1669,8 +1745,7 @@ internal class CSharpFormatter : CodeFormatter {
         case MethodCallingConvention.ThisCall:
           sb.Append("unmanaged[Thiscall] ");
           break;
-        // https://github.com/jbevain/cecil/issues/842 - no enum entry for this yet
-        case (MethodCallingConvention) 9:
+        case MethodCallingConvention.Unmanaged:
           sb.Append("unmanaged");
           if (callingConventions.Count > 0) {
             sb.Append('[').AppendJoin(", ", callingConventions).Append("] ");
@@ -1720,6 +1795,7 @@ internal class CSharpFormatter : CodeFormatter {
     return sb.ToString();
   }
 
+  /// <inheritdoc />
   protected override string TypeOf(TypeReference tr) {
     // FIXME: Does this need a context?
     return $"typeof({this.TypeName(tr)})";

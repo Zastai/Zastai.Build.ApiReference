@@ -1,18 +1,29 @@
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
 using System.Linq;
+using System.Text;
+
+using Mono.Cecil;
 
 namespace Zastai.Build.ApiReference;
 
-internal abstract partial class CodeFormatter {
+/// <summary>A class that will extract and format the public API for an assembly.</summary>
+public abstract partial class CodeFormatter {
 
+  /// <summary>The name of the namespace currently being processed.</summary>
   protected string? CurrentNamespace { get; private set; }
 
+  /// <summary>The type definition currently being processed.</summary>
   protected TypeDefinition? CurrentType { get; private set; }
 
-  protected virtual int TopLevelTypeIndent => 2;
+  /// <summary>The number of spaces to be used to indent a top-level type.</summary>
+  protected virtual int TopLevelTypeIndent => 0;
 
-  private readonly ISet<string> _attributesToExclude = new HashSet<string>();
+  private readonly HashSet<string> _attributesToExclude = [];
 
-  private readonly ISet<string> _attributesToInclude = new HashSet<string>();
+  private readonly HashSet<string> _attributesToInclude = [];
 
   private bool _binaryEnumsEnabled;
 
@@ -20,23 +31,50 @@ internal abstract partial class CodeFormatter {
 
   private bool _hexEnumsEnabled;
 
-  // FIXME: IReadOnlySet would be better, but is not available on .NET Framework.
-  private ISet<string>? _runtimeFeatures;
+  private HashSet<string>? _runtimeFeatures;
 
-  protected virtual IEnumerable<string?> AssemblyAttributeFooter(AssemblyDefinition ad) => Enumerable.Empty<string?>();
+  /// <summary>Produces the lines to use as a footer for the section containing assembly-level attributes.</summary>
+  /// <param name="ad">The assembly definition whose attributes have just been formatted.</param>
+  /// <returns>The lines to use as a footer for the section containing assembly-level attributes.</returns>
+  protected virtual IEnumerable<string?> AssemblyAttributeFooter(AssemblyDefinition ad) => [];
 
+  /// <summary>Produces the lines to use as a header for the section containing assembly-level attributes.</summary>
+  /// <param name="ad">The assembly definition whose attributes are about to be formatted.</param>
+  /// <returns>The lines to use as a header for the section containing assembly-level attributes.</returns>
   protected virtual IEnumerable<string?> AssemblyAttributeHeader(AssemblyDefinition ad) {
     yield return null;
     yield return this.LineComment("Assembly Attributes");
     yield return null;
   }
 
+  /// <summary>Produces a single line for the section containing assembly-level attributes.</summary>
+  /// <param name="attribute">The formatted attribute name plus constructor arguments and properties, if specified.</param>
+  /// <returns>A single line for the section containing assembly-level attributes.</returns>
   protected abstract string AssemblyAttributeLine(string attribute);
 
+  /// <summary>Formats a cast of a value to a particular type.</summary>
+  /// <param name="targetType">The target type for the case.</param>
+  /// <param name="value">The formatted value being cast to <paramref name="targetType"/>.</param>
+  /// <returns>The formatted cast.</returns>
   protected abstract string Cast(TypeDefinition targetType, string value);
 
+  /// <summary>
+  /// Clears any attribute exclusion/inclusion patterns previously set up via <see cref="ExcludeCustomAttributes"/> and/or
+  /// <see cref="IncludeCustomAttributes"/>.
+  /// </summary>
+  public void ClearCustomAttributePatterns() {
+    this._attributesToInclude.Clear();
+    this._attributesToExclude.Clear();
+  }
+
+  /// <summary>Formats a custom attribute.</summary>
+  /// <param name="ca">The custom attribute to format.</param>
+  /// <returns>The formatted custom attribute (its name, plus constructor arguments and properties, if specified).</returns>
   protected abstract string CustomAttribute(CustomAttribute ca);
 
+  /// <summary>Formats an unnamed custom attribute argument (i.e. a constructor argument).</summary>
+  /// <param name="value">The attribute argument to format.</param>
+  /// <returns>The formatted custom attribute argument.</returns>
   protected abstract string CustomAttributeArgument(CustomAttributeArgument value);
 
   private IEnumerable<string?> CustomAttributes(AssemblyDefinition ad) {
@@ -57,18 +95,29 @@ internal abstract partial class CodeFormatter {
     }
   }
 
-  protected abstract IEnumerable<string?> CustomAttributes(ICustomAttributeProvider cap, int indent);
+  /// <summary>Formats a set of custom attributes.</summary>
+  /// <param name="cap">The source of the custom attributes.</param>
+  /// <param name="indent">The number of spaces of indentation to use.</param>
+  /// <returns>The formatted custom attributes (if any were retained), one per line.</returns>
+  protected abstract IEnumerable<string> CustomAttributes(ICustomAttributeProvider cap, int indent);
 
+  /// <summary>Formats a set of custom attributes.</summary>
+  /// <param name="attributes">The custom attributes to format.</param>
+  /// <returns>
+  /// The formatted custom attributes (if any were retained), one per line. Note that these lines contain the result of
+  /// <see cref="CustomAttribute"/>, so just the attribute name and its arguments, without any language-specific syntax to mark that
+  /// as an attribute declaration.
+  /// </returns>
   protected IEnumerable<string> CustomAttributes(IEnumerable<CustomAttribute> attributes) {
     // Sort by the (full) type name; unfortunately, I'm not sure how to sort duplicates in a stable way.
-    var sortedAttributes = new SortedDictionary<string, IList<CustomAttribute>>();
+    var sortedAttributes = new SortedDictionary<string, List<CustomAttribute>>();
     foreach (var ca in attributes) {
       if (!this.Retain(ca)) {
         continue;
       }
       var attributeType = ca.AttributeType.FullName;
       if (!sortedAttributes.TryGetValue(attributeType, out var list)) {
-        sortedAttributes.Add(attributeType, list = new List<CustomAttribute>());
+        sortedAttributes.Add(attributeType, list = []);
       }
       list.Add(ca);
     }
@@ -101,18 +150,60 @@ internal abstract partial class CodeFormatter {
     }
   }
 
+  /// <summary>
+  /// Configures the use of binary literals for the values of enums marked with <see cref="FlagsAttribute"/> (instead of
+  /// regular integer literals). If hex literals are enabled as well (via <see cref="EnableHexEnums"/>), binary literals will still
+  /// be used.
+  /// </summary>
+  /// <param name="yes">
+  /// Indicates whether binary literals should be used for the values of enums marked with <see cref="FlagsAttribute"/>.
+  /// </param>
   public void EnableBinaryEnums(bool yes) => this._binaryEnumsEnabled = yes;
 
+  /// <summary>
+  /// Configures the use of character literals for the values of enums based on <see cref="UInt16"/> (instead of
+  /// regular integer literals), when all values are suitable (digits, letters, punctuation, symbols, or a subset of whitespace).
+  /// </summary>
+  /// <param name="yes">
+  /// Indicates whether character literals should be used for the values of enums based on <see cref="UInt16"/>, when all values
+  /// are suitable (digits, letters, punctuation, symbols, or a subset of whitespace).
+  /// </param>
   public void EnableCharEnums(bool yes) => this._charEnumsEnabled = yes;
 
+  /// <summary>
+  /// Configures the use of hexadecimal literals for the values of enums marked with <see cref="FlagsAttribute"/> (instead of
+  /// regular integer literals). If binary literals are enabled as well (via <see cref="EnableBinaryEnums"/>), binary literals will
+  /// be used.
+  /// </summary>
+  /// <param name="yes">
+  /// Indicates whether hexadecimal literals should be used for the values of enums marked with <see cref="FlagsAttribute"/>.
+  /// </param>
   public void EnableHexEnums(bool yes) => this._hexEnumsEnabled = yes;
 
+  /// <summary>Formats a field that is declared by an enum.</summary>
+  /// <param name="fd">The field to format.</param>
+  /// <param name="indent">The number of spaces of indentation to use.</param>
+  /// <param name="mode">The applicable formatting mode.</param>
+  /// <param name="highestBit">The highest bit (zero-based) set in the values for all fields in the enum.</param>
+  /// <returns></returns>
   protected abstract string EnumField(FieldDefinition fd, int indent, EnumFieldValueMode mode, int highestBit);
 
+  /// <summary>Formats a (named) value of an enum type.</summary>
+  /// <param name="enumType">The enum type.</param>
+  /// <param name="name">The name of the enum value.</param>
+  /// <returns>The formatted enum value.</returns>
   protected abstract string EnumValue(TypeDefinition enumType, string name);
 
+  /// <summary>Formats an event.</summary>
+  /// <param name="ed">The event to format.</param>
+  /// <param name="indent">The number of spaces of indentation to use.</param>
+  /// <returns>The formatted event (one line).</returns>
   protected abstract string Event(EventDefinition ed, int indent);
 
+  /// <summary>Formats the events declared by a type.</summary>
+  /// <param name="td">The type to process.</param>
+  /// <param name="indent">The number of spaces of indentation to use.</param>
+  /// <returns>The formatted events (one per line).</returns>
   protected IEnumerable<string?> Events(TypeDefinition td, int indent) {
     if (!td.HasEvents) {
       yield break;
@@ -160,9 +251,14 @@ internal abstract partial class CodeFormatter {
         types.Add(et.FullName, et);
       }
     }
-    return exportedTypes.Count == 0 ? Enumerable.Empty<string?>() : this.ExportedTypes(exportedTypes);
+    return exportedTypes.Count == 0 ? [] : this.ExportedTypes(exportedTypes);
   }
 
+  /// <summary>Adds patterns indicating attributes that should be excluded from the output.</summary>
+  /// <param name="patterns">
+  /// The patterns to exclude (using simple shell wildcards: <c>*</c> or <c>?</c>). Note that matches are against the internal name
+  /// of the attribute, so <c>Foo/BarAttribute`1</c> for a <c>BarAttribute&lt;T&gt;</c> attribute type nested in a <c>Foo</c> class.
+  /// </param>
   public void ExcludeCustomAttributes(IEnumerable<string> patterns) {
     foreach (var pattern in patterns) {
       if (string.IsNullOrWhiteSpace(pattern)) {
@@ -172,10 +268,21 @@ internal abstract partial class CodeFormatter {
     }
   }
 
+  /// <summary>Formats the types exported by an assembly.</summary>
+  /// <param name="exportedTypes">The exported types (grouped by their scope).</param>
+  /// <returns>The formatted exported types.</returns>
   protected abstract IEnumerable<string?> ExportedTypes(SortedDictionary<string, IDictionary<string, ExportedType>> exportedTypes);
 
+  /// <summary>Formats a field.</summary>
+  /// <param name="fd">The field to format.</param>
+  /// <param name="indent">The number of spaces of indentation to use.</param>
+  /// <returns>The formatted field (one line).</returns>
   protected abstract string Field(FieldDefinition fd, int indent);
 
+  /// <summary>Formats the fields declared by a type.</summary>
+  /// <param name="td">The type to process.</param>
+  /// <param name="indent">The number of spaces of indentation to use.</param>
+  /// <returns>The formatted fields (one per line).</returns>
   protected IEnumerable<string?> Fields(TypeDefinition td, int indent) {
     if (!td.HasFields) {
       yield break;
@@ -205,7 +312,7 @@ internal abstract partial class CodeFormatter {
         foreach (var ca in td.CustomAttributes) {
           var at = ca.AttributeType;
           if (at.Scope == at.Module.TypeSystem.CoreLibrary && at is { Namespace: "System", Name: "FlagsAttribute" }) {
-            // Character values never makse sense for [Flags] enums.
+            // Character values never makes sense for [Flags] enums.
             canUseCharacters = false;
             canUseBinary = this._binaryEnumsEnabled;
             canUseHex = this._hexEnumsEnabled;
@@ -252,7 +359,7 @@ internal abstract partial class CodeFormatter {
               ushort u16 => Convert.ToString(u16, 2),
               _ => ""
             };
-            highestBit = Math.Max(highestBit, binary.Length);
+            highestBit = Math.Max(highestBit, binary.Length - 1);
             if (binary.Length == 0) {
               canUseBinary = canUseHex = false;
             }
@@ -306,12 +413,21 @@ internal abstract partial class CodeFormatter {
     }
   }
 
-  protected virtual IEnumerable<string?> FileFooter(AssemblyDefinition ad) => Enumerable.Empty<string?>();
+  /// <summary>Produces the lines to use as a footer for the whole output.</summary>
+  /// <param name="ad">The assembly whose public API has just been formatted.</param>
+  /// <returns>The lines to use as a footer for the whole output.</returns>
+  protected virtual IEnumerable<string?> FileFooter(AssemblyDefinition ad) => [];
 
+  /// <summary>Produces the lines to use as a header for the whole output.</summary>
+  /// <param name="ad">The assembly whose public API is about to be formatted.</param>
+  /// <returns>The lines to use as a header for the whole output.</returns>
   protected virtual IEnumerable<string?> FileHeader(AssemblyDefinition ad) {
     yield return this.LineComment("=== Generated API Reference === DO NOT EDIT BY HAND ===");
   }
 
+  /// <summary>Formats the public API for an assembly.</summary>
+  /// <param name="ad">The assembly to process.</param>
+  /// <returns>The formatted public API for the assembly, line by line.</returns>
   public IEnumerable<string?> FormatPublicApi(AssemblyDefinition ad) {
     this._runtimeFeatures = ad.GetRuntimeFeatures();
     foreach (var line in this.FileHeader(ad)) {
@@ -332,8 +448,43 @@ internal abstract partial class CodeFormatter {
     this._runtimeFeatures = null;
   }
 
+  /// <summary>Formats the public API for an assembly.</summary>
+  /// <param name="assembly">A stream containing the assembly to process.</param>
+  /// <returns>The formatted public API for the assembly, line by line.</returns>
+  public IEnumerable<string?> FormatPublicApi(Stream assembly) => this.FormatPublicApi(assembly, new ReaderParameters());
+
+  /// <summary>Formats the public API for an assembly.</summary>
+  /// <param name="assembly">A stream containing the assembly to process.</param>
+  /// <param name="parameters">The parameters to apply when reading the assembly.</param>
+  /// <returns>The formatted public API for the assembly, line by line.</returns>
+  public IEnumerable<string?> FormatPublicApi(Stream assembly, ReaderParameters parameters) {
+    using var ad = AssemblyDefinition.ReadAssembly(assembly, parameters);
+    return this.FormatPublicApi(ad);
+  }
+
+  /// <summary>Formats the public API for an assembly.</summary>
+  /// <param name="assemblyPath">The path to the assembly to process.</param>
+  /// <returns>The formatted public API for the assembly, line by line.</returns>
+  public IEnumerable<string?> FormatPublicApi(string assemblyPath) => this.FormatPublicApi(assemblyPath, new ReaderParameters());
+
+  /// <summary>Formats the public API for an assembly.</summary>
+  /// <param name="assemblyPath">The path to the assembly to process.</param>
+  /// <param name="parameters">The parameters to apply when reading the assembly.</param>
+  /// <returns>The formatted public API for the assembly, line by line.</returns>
+  public IEnumerable<string?> FormatPublicApi(string assemblyPath, ReaderParameters parameters) {
+    using var ad = AssemblyDefinition.ReadAssembly(assemblyPath, parameters);
+    return this.FormatPublicApi(ad);
+  }
+
+  /// <summary>Formats any constraints applied to a generic parameter.</summary>
+  /// <param name="gp">The generic parameter.</param>
+  /// <returns>The formatted constrains.</returns>
   protected abstract string? GenericParameterConstraints(GenericParameter gp);
 
+  /// <summary>Formats all generic parameter constraints that apply to something that can have generic parameters.</summary>
+  /// <param name="provider">The source of the generic parameters.</param>
+  /// <param name="indent">The number of spaces of indentation to use.</param>
+  /// <returns>The formatted generic parameter constraints.</returns>
   protected IEnumerable<string> GenericParameterConstraints(IGenericParameterProvider provider, int indent) {
     if (!provider.HasGenericParameters) {
       yield break;
@@ -349,8 +500,23 @@ internal abstract partial class CodeFormatter {
     }
   }
 
+  /// <summary>Determines whether the assembly being processed includes a particular runtime feature.</summary>
+  /// <param name="feature">
+  /// The name of the feature to check for. This should match one of the field names documented
+  /// <a href="https://learn.microsoft.com/en-us/dotnet/api/system.runtime.compilerservices.runtimefeature">here</a>.
+  /// </param>
+  /// <returns></returns>
   protected bool HasRuntimeFeature(string feature) => this._runtimeFeatures?.Contains(feature) ?? false;
 
+  /// <summary>
+  /// Adds patterns indicating attributes that should be included in the output. When inclusion patterns are set up, those will be
+  /// the <em>only</em> attributes that are included (further filtered by any exclusion patterns set up via
+  /// <see cref="ExcludeCustomAttributes"/>).
+  /// </summary>
+  /// <param name="patterns">
+  /// The patterns to include (using simple shell wildcards: <c>*</c> or <c>?</c>). Note that matches are against the internal name
+  /// of the attribute, so <c>Foo/BarAttribute`1</c> for a <c>BarAttribute&lt;T&gt;</c> attribute type nested in a <c>Foo</c> class.
+  /// </param>
   public void IncludeCustomAttributes(IEnumerable<string> patterns) {
     foreach (var pattern in patterns) {
       if (string.IsNullOrWhiteSpace(pattern)) {
@@ -360,42 +526,114 @@ internal abstract partial class CodeFormatter {
     }
   }
 
+  /// <summary>
+  /// Indicates whether the public API should be considered to include <code>internal</code> and <code>private protected</code>
+  /// items instead of only <code>public</code> and <code>protected</code> ones.
+  /// </summary>
   public bool IncludeInternals { get; set; }
 
+  /// <summary>
+  /// Determines whether a particular custom attribute will be represented by syntax in the formatted output (implying that there is
+  /// no need to format it as an attribute).
+  /// </summary>
+  /// <param name="ca">The custom attribute.</param>
+  /// <returns><see langword="true"/> when the attribute gets formatted as syntax, <see langword="false"/> otherwise.</returns>
+  protected abstract bool IsHandledBySyntax(ICustomAttribute ca);
+
+  /// <summary>Formats a single-line comment.</summary>
+  /// <param name="comment">The comment text.</param>
+  /// <returns>The formatted comment.</returns>
   protected abstract string LineComment(string comment);
 
+  /// <summary>Formats a boolean literal.</summary>
+  /// <param name="value">The value for the literal.</param>
+  /// <returns>The formatted literal.</returns>
   protected abstract string Literal(bool value);
 
+  /// <summary>Formats an unsigned 8-bit integer literal.</summary>
+  /// <param name="value">The value for the literal.</param>
+  /// <returns>The formatted literal.</returns>
   protected abstract string Literal(byte value);
 
+  /// <summary>Formats a character literal.</summary>
+  /// <param name="value">The value for the literal.</param>
+  /// <returns>The formatted literal.</returns>
   protected abstract string Literal(char value);
 
+  /// <summary>Formats a decimal literal.</summary>
+  /// <param name="value">The value for the literal.</param>
+  /// <returns>The formatted literal.</returns>
   protected abstract string Literal(decimal value);
 
+  /// <summary>Formats a 64-bit floating-point literal.</summary>
+  /// <param name="value">The value for the literal.</param>
+  /// <returns>The formatted literal.</returns>
   protected abstract string Literal(double value);
 
+  /// <summary>Formats a 32-bit floating-point literal.</summary>
+  /// <param name="value">The value for the literal.</param>
+  /// <returns>The formatted literal.</returns>
   protected abstract string Literal(float value);
 
+  /// <summary>Formats a signed 32-bit integer literal.</summary>
+  /// <param name="value">The value for the literal.</param>
+  /// <returns>The formatted literal.</returns>
   protected abstract string Literal(int value);
 
+  /// <summary>Formats a signed 64-bit integer literal.</summary>
+  /// <param name="value">The value for the literal.</param>
+  /// <returns>The formatted literal.</returns>
   protected abstract string Literal(long value);
 
+  /// <summary>Formats a signed 8-bit integer literal.</summary>
+  /// <param name="value">The value for the literal.</param>
+  /// <returns>The formatted literal.</returns>
   protected abstract string Literal(sbyte value);
 
+  /// <summary>Formats a signed 16-bit integer literal.</summary>
+  /// <param name="value">The value for the literal.</param>
+  /// <returns>The formatted literal.</returns>
   protected abstract string Literal(short value);
 
+  /// <summary>Formats a string literal.</summary>
+  /// <param name="value">The value for the literal.</param>
+  /// <returns>The formatted literal.</returns>
   protected abstract string Literal(string value);
 
+  /// <summary>Formats an unsigned 32-bit integer literal.</summary>
+  /// <param name="value">The value for the literal.</param>
+  /// <returns>The formatted literal.</returns>
   protected abstract string Literal(uint value);
 
+  /// <summary>Formats an unsigned 64-bit integer literal.</summary>
+  /// <param name="value">The value for the literal.</param>
+  /// <returns>The formatted literal.</returns>
   protected abstract string Literal(ulong value);
 
+  /// <summary>Formats an unsigned 16-bit integer literal.</summary>
+  /// <param name="value">The value for the literal.</param>
+  /// <returns>The formatted literal.</returns>
   protected abstract string Literal(ushort value);
 
+  /// <summary>Formats a method.</summary>
+  /// <param name="md">The method to format.</param>
+  /// <param name="indent">The number of spaces of indentation to use.</param>
+  /// <returns>The formatted method (including any attributes attached to it).</returns>
   protected abstract IEnumerable<string?> Method(MethodDefinition md, int indent);
 
+  /// <summary>Formats the name of a method, and determine its (formatted) return type.</summary>
+  /// <param name="md">The method.</param>
+  /// <param name="returnTypeName">
+  /// The (formatted) return type for the method. This can be the empty string in cases where the return type was used in the method
+  /// name (as is typically the case for constructors and conversion operators).
+  /// </param>
+  /// <returns>The formatted method name.</returns>
   protected abstract string MethodName(MethodDefinition md, out string returnTypeName);
 
+  /// <summary>Formats the methods declared by a type.</summary>
+  /// <param name="td">The type to process.</param>
+  /// <param name="indent">The number of spaces of indentation to use.</param>
+  /// <returns>The formatted methods, as produced by <see cref="Method"/>, separated by blank lines.</returns>
   protected IEnumerable<string?> Methods(TypeDefinition td, int indent) {
     if (!td.HasMethods) {
       yield break;
@@ -426,16 +664,28 @@ internal abstract partial class CodeFormatter {
     }
   }
 
-  protected virtual IEnumerable<string?> ModuleAttributeFooter(ModuleDefinition md) => Enumerable.Empty<string?>();
+  /// <summary>Produces the lines to use as a footer for the section containing module-level attributes.</summary>
+  /// <param name="md">The module definition whose attributes have just been formatted.</param>
+  /// <returns>The lines to use as a footer for the section containing module-level attributes.</returns>
+  protected virtual IEnumerable<string?> ModuleAttributeFooter(ModuleDefinition md) => [];
 
+  /// <summary>Produces the lines to use as a header for the section containing module-level attributes.</summary>
+  /// <param name="md">The module definition whose attributes are about to be formatted.</param>
+  /// <returns>The lines to use as a header for the section containing module-level attributes.</returns>
   protected virtual IEnumerable<string?> ModuleAttributeHeader(ModuleDefinition md) {
     yield return null;
     yield return this.LineComment($"Module Attributes ({md.Name})");
     yield return null;
   }
 
+  /// <summary>Produces a single line for the section containing module-level attributes.</summary>
+  /// <param name="attribute">The formatted attribute name plus constructor arguments and properties, if specified.</param>
+  /// <returns>A single line for the section containing module-level attributes.</returns>
   protected abstract string ModuleAttributeLine(string attribute);
 
+  /// <summary>Formats a custom attribute's named arguments (i.e. its property assignments).</summary>
+  /// <param name="ca">The custom attribute to process.</param>
+  /// <returns>The named arguments, formatted using <see cref="NamedCustomAttributeArgument"/>.</returns>
   protected IEnumerable<string> NamedCustomAttributeArguments(CustomAttribute ca) {
     var namedArguments = new SortedDictionary<string, CustomAttributeArgument>();
     if (ca.HasFields) {
@@ -451,13 +701,25 @@ internal abstract partial class CodeFormatter {
     return namedArguments.Select(item => this.NamedCustomAttributeArgument(item.Key, item.Value));
   }
 
+  /// <summary>Formats a named custom attribute argument (i.e. a property assignment).</summary>
+  /// <param name="name">The name of the argument.</param>
+  /// <param name="value">The attribute argument to format.</param>
+  /// <returns>The formatted custom attribute argument.</returns>
   protected virtual string NamedCustomAttributeArgument(string name, CustomAttributeArgument value)
     => name + " = " + this.CustomAttributeArgument(value);
 
-  protected virtual IEnumerable<string?> NamespaceFooter() => Enumerable.Empty<string?>();
+  /// <summary>Produces the lines to use as a footer for the formatted contents of the current namespace.</summary>
+  /// <returns>The lines to use as a footer for the formatted contents of the current namespace.</returns>
+  protected virtual IEnumerable<string?> NamespaceFooter() => [];
 
-  protected virtual IEnumerable<string?> NamespaceHeader() => Enumerable.Empty<string?>();
+  /// <summary>Produces the lines to use as a header for the formatted contents of the current namespace.</summary>
+  /// <returns>The lines to use as a header for the formatted contents of the current namespace.</returns>
+  protected virtual IEnumerable<string?> NamespaceHeader() => [];
 
+  /// <summary>Formats the nested types declared by a type.</summary>
+  /// <param name="td">The type to process.</param>
+  /// <param name="indent">The number of spaces of indentation to use.</param>
+  /// <returns>The formatted types.</returns>
   protected IEnumerable<string?> NestedTypes(TypeDefinition td, int indent) {
     if (!td.HasNestedTypes) {
       yield break;
@@ -485,10 +747,18 @@ internal abstract partial class CodeFormatter {
     this.CurrentType = parentType;
   }
 
+  /// <summary>Formats a null literal.</summary>
+  /// <returns>The formatted null literal.</returns>
   protected abstract string Null();
 
+  /// <summary>Formats an "or" operator, as used to combine multiple values of a <c>[Flags]</c> enum.</summary>
+  /// <returns>The formatted operator.</returns>
   protected abstract string Or();
 
+  /// <summary>Formats the properties declared by a type.</summary>
+  /// <param name="td">The type to process.</param>
+  /// <param name="indent">The number of spaces of indentation to use.</param>
+  /// <returns>The formatted properties.</returns>
   protected IEnumerable<string?> Properties(TypeDefinition td, int indent) {
     if (!td.HasProperties) {
       yield break;
@@ -533,12 +803,24 @@ internal abstract partial class CodeFormatter {
     }
   }
 
+  /// <summary>Formats a property.</summary>
+  /// <param name="pd">The property to format.</param>
+  /// <param name="indent">The number of spaces of indentation to use.</param>
+  /// <returns>The formatted property (including any attributes attached to it).</returns>
   protected abstract IEnumerable<string?> Property(PropertyDefinition pd, int indent);
 
+  /// <summary>Formats the name of a property.</summary>
+  /// <param name="pd">The property.</param>
+  /// <returns>The formatted name for the property.</returns>
   protected abstract string PropertyName(PropertyDefinition pd);
 
-  protected abstract bool IsHandledBySyntax(ICustomAttribute ca);
-
+  /// <summary>Determines whether a particular custom attribute should be retained and formatted as an attribute.</summary>
+  /// <param name="ca">The custom attribute.</param>
+  /// <returns>
+  /// <see langword="true"/> when the attribute is not handled by syntax (as determined by <see cref="IsHandledBySyntax"/>) and has
+  /// not been marked for exclusion (via <see cref="ExcludeCustomAttributes"/> and/or <see cref="IncludeCustomAttributes"/>);
+  /// <see langword="false"/> otherwise.
+  /// </returns>
   protected bool Retain(ICustomAttribute ca) {
     // Attributes handled by syntax (like [Extension] and [ParamArray] for C#) are never retained.
     if (this.IsHandledBySyntax(ca)) {
@@ -620,19 +902,42 @@ internal abstract partial class CodeFormatter {
     }
   }
 
+  /// <summary>Formats a type.</summary>
+  /// <param name="td">The type to format.</param>
+  /// <param name="indent">The number of spaces of indentation to use.</param>
+  /// <returns>The formatted type.</returns>
   protected abstract IEnumerable<string?> Type(TypeDefinition td, int indent);
 
-  protected virtual IEnumerable<string?> TypeFooter(TypeDefinition td) => Enumerable.Empty<string?>();
+  /// <summary>Produces the lines to use as a footer for a formatted type.</summary>
+  /// <param name="td">The type.</param>
+  /// <returns>The lines to use as a footer for a formatted type.</returns>
+  protected virtual IEnumerable<string?> TypeFooter(TypeDefinition td) => [];
 
+  /// <summary>Produces the lines to use as a header for a formatted type.</summary>
+  /// <param name="td">The type.</param>
+  /// <returns>The lines to use as a header for a formatted type.</returns>
   protected virtual IEnumerable<string?> TypeHeader(TypeDefinition td) {
     yield return null;
   }
 
+  /// <summary>Formats the name of a type.</summary>
+  /// <param name="tr">The type.</param>
+  /// <param name="context">The source of custom attributes to use as the direct context, if available.</param>
+  /// <param name="methodContext">The method to use as context, if applicable.</param>
+  /// <param name="typeContext">The type to use as context, if applicable.</param>
+  /// <returns></returns>
   protected abstract string TypeName(TypeReference tr, ICustomAttributeProvider? context = null,
                                      MethodDefinition? methodContext = null, TypeDefinition? typeContext = null);
 
+  /// <summary>Formats a <see langword="typeof"/> operator.</summary>
+  /// <param name="tr">The type passed to the operator.</param>
+  /// <returns>The formatted operator.</returns>
   protected abstract string TypeOf(TypeReference tr);
 
+  /// <summary>Formats a value.</summary>
+  /// <param name="type">The type of the value, if explicitly specified.</param>
+  /// <param name="value">The value to format.</param>
+  /// <returns></returns>
   protected virtual string Value(TypeReference? type, object? value) {
     if (value is not null && type is { IsValueType: true }) {
       // Check for enum values

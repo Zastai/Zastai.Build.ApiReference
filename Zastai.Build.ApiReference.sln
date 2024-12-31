@@ -10,6 +10,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Support Files", "Support Fi
 		.gitignore = .gitignore
 		build-package.ps1 = build-package.ps1
 		Directory.Packages.props = Directory.Packages.props
+		README.md = README.md
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "GitHub", "GitHub", "{9D3966CD-4AE3-48BF-A058-4AF07F6FDCD2}"
@@ -26,9 +27,13 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Actions", "Actions", "{2DE7
 		.github\workflows\update-labels.yml = .github\workflows\update-labels.yml
 	EndProjectSection
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Sandbox", "Sandbox\Sandbox.csproj", "{F796FE82-EE83-4CCE-9B1A-B28E6E8E277C}"
+EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Zastai.Build.ApiReference", "Zastai.Build.ApiReference\Zastai.Build.ApiReference.csproj", "{256359F6-1A33-4D2F-8527-F2771858A6C0}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Sandbox", "Sandbox\Sandbox.csproj", "{F796FE82-EE83-4CCE-9B1A-B28E6E8E277C}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Zastai.Build.ApiReference.Library", "Zastai.Build.ApiReference.Library\Zastai.Build.ApiReference.Library.csproj", "{1B02BDA1-15C4-43FB-8DD0-3CD160BB6610}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Zastai.Build.ApiReference.Tool", "Zastai.Build.ApiReference.Tool\Zastai.Build.ApiReference.Tool.csproj", "{A0F06EE6-503E-4756-93C3-9083A9FC6280}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -36,14 +41,22 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{256359F6-1A33-4D2F-8527-F2771858A6C0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{256359F6-1A33-4D2F-8527-F2771858A6C0}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{256359F6-1A33-4D2F-8527-F2771858A6C0}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{256359F6-1A33-4D2F-8527-F2771858A6C0}.Release|Any CPU.Build.0 = Release|Any CPU
 		{F796FE82-EE83-4CCE-9B1A-B28E6E8E277C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{F796FE82-EE83-4CCE-9B1A-B28E6E8E277C}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{F796FE82-EE83-4CCE-9B1A-B28E6E8E277C}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{F796FE82-EE83-4CCE-9B1A-B28E6E8E277C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{256359F6-1A33-4D2F-8527-F2771858A6C0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{256359F6-1A33-4D2F-8527-F2771858A6C0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{256359F6-1A33-4D2F-8527-F2771858A6C0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{256359F6-1A33-4D2F-8527-F2771858A6C0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1B02BDA1-15C4-43FB-8DD0-3CD160BB6610}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1B02BDA1-15C4-43FB-8DD0-3CD160BB6610}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1B02BDA1-15C4-43FB-8DD0-3CD160BB6610}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1B02BDA1-15C4-43FB-8DD0-3CD160BB6610}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A0F06EE6-503E-4756-93C3-9083A9FC6280}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A0F06EE6-503E-4756-93C3-9083A9FC6280}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A0F06EE6-503E-4756-93C3-9083A9FC6280}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A0F06EE6-503E-4756-93C3-9083A9FC6280}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

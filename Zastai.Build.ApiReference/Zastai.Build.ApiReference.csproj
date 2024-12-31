@@ -1,9 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <OutputType>Exe</OutputType>
     <PlatformTarget>AnyCPU</PlatformTarget>
-    <TargetFrameworks>net472;net6.0</TargetFrameworks>
+    <TargetFrameworks>netstandard2.0</TargetFrameworks>
   </PropertyGroup>
 
   <PropertyGroup>
@@ -13,55 +12,53 @@
 
   <PropertyGroup>
     <Description>This package generates an API reference for the project it's added to, to allow easy API diffs.</Description>
+    <DevelopmentDependency>true</DevelopmentDependency>
+    <PackageIcon>package-icon.png</PackageIcon>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>$(RepositoryUrl)/blob/main/README.md</PackageProjectUrl>
     <PackageReadMeFile>README.md</PackageReadMeFile>
     <PackageTags>C# API Reference</PackageTags>
-    <Title>API Reference Generator</Title>
-    <Version>2.2.1-pre</Version>
-  </PropertyGroup>
-
-  <PropertyGroup>
-    <BuildOutputTargetFolder>tools</BuildOutputTargetFolder>
-    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
-    <PackageIcon>package-icon.png</PackageIcon>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageType>Dependency</PackageType>
-    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+    <Title>API Reference Generator</Title>
+    <Version>3.0.0-pre</Version>
   </PropertyGroup>
 
   <PropertyGroup>
+    <!-- Ensure the dependencies are present in the output folder (because they need to be packaged). -->
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <!-- But then they should not be included in the package's dependencies. -->
+    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+    <!-- Put the tasks under a different tree, to avoid them getting referenced by consumers. -->
+    <BuildOutputTargetFolder>build</BuildOutputTargetFolder>
+    <!-- However, that then triggers thr NU5128 warning (and possibly NU5100 too). -->
+    <NoWarn>$(NoWarn);NU5100;NU5128</NoWarn>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
     <ImplicitUsings>disable</ImplicitUsings>
-    <LangVersion>10</LangVersion>
+    <LangVersion>12</LangVersion>
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="JetBrains.Annotations" />
-    <PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="all" />
-    <PackageReference Include="Mono.Cecil" />
+    <PackageReference Include="Microsoft.Build.Framework" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>
-    <Using Include="System" />
-    <Using Include="System.Collections.Generic" />
-    <Using Include="System.Diagnostics" />
-    <Using Include="System.IO" />
-    <Using Include="System.Text" />
+    <ProjectReference Include="..\Zastai.Build.ApiReference.Library\Zastai.Build.ApiReference.Library.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <Using Include="Mono.Cecil" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <None Include="build/*.props;build/*.targets" Pack="true">
+    <None Include="build/*.props;build/*.targets">
+      <Pack>true</Pack>
       <PackagePath>build/%(Filename)%(Extension)</PackagePath>
     </None>
     <None Include="../LICENSE.md">
       <Pack>true</Pack>
       <PackagePath>LICENSE.md</PackagePath>
     </None>
-    <None Include="../README.md">
+    <None Include="README.md">
       <Pack>true</Pack>
       <PackagePath>README.md</PackagePath>
     </None>
@@ -79,6 +76,9 @@
   <Target Name="BundleDependencies">
     <ItemGroup>
       <TfmSpecificPackageFile Include="$(OutputPath)Mono.Cecil.*dll">
+        <PackagePath>$(BuildOutputTargetFolder)/$(TargetFramework)/</PackagePath>
+      </TfmSpecificPackageFile>
+      <TfmSpecificPackageFile Include="$(OutputPath)Zastai.Build.ApiReference.Library.*dll">
         <PackagePath>$(BuildOutputTargetFolder)/$(TargetFramework)/</PackagePath>
       </TfmSpecificPackageFile>
     </ItemGroup>

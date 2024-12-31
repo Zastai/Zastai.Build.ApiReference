@@ -1,7 +1,16 @@
-﻿ namespace Zastai.Build.ApiReference;
+﻿using System;
+using System.Collections.Generic;
 
-internal abstract partial class CodeFormatter : IComparer<MethodDefinition>, IComparer<PropertyDefinition> {
+using Mono.Cecil;
 
+namespace Zastai.Build.ApiReference;
+
+public abstract partial class CodeFormatter : IComparer<MethodDefinition>, IComparer<PropertyDefinition> {
+
+  // Custom comparers for some Cecil object types, in order to get a sort order that matches the text generated for them (and in a
+  // way that is not target-framework-dependent).
+
+  /// <inheritdoc />
   public int Compare(MethodDefinition? x, MethodDefinition? y) {
     if (object.ReferenceEquals(x, y)) {
       return 0;
@@ -92,6 +101,7 @@ internal abstract partial class CodeFormatter : IComparer<MethodDefinition>, ICo
     return string.Compare(xReturnType, yReturnType, StringComparison.Ordinal);
   }
 
+  /// <inheritdoc />
   public int Compare(PropertyDefinition? x, PropertyDefinition? y) {
     if (object.ReferenceEquals(x, y)) {
       return 0;
