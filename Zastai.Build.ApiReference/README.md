@@ -17,7 +17,7 @@ behaviour:
 The format to use for the API Reference source.
 
 Supported Values: `csharp` (or `cs`) for C#, and `csharp-markdown`
-(or `cs-md`) for MarkDown-with-C#. Case does not matter.
+(or `cs-md`) for Markdown-with-C#. Case does not matter.
 
 ### ApiReferenceLibraryPath
 
