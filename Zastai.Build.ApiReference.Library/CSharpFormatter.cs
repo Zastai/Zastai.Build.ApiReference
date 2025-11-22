@@ -923,6 +923,7 @@ public class CSharpFormatter : CodeFormatter {
               name = "::";
               break;
             case "Decrement":
+            case "DecrementAssignment":
               name = "--";
               break;
             case "Dereference":
@@ -966,6 +967,7 @@ public class CSharpFormatter : CodeFormatter {
               name = ">=";
               break;
             case "Increment":
+            case "IncrementAssignment":
               name = "++";
               break;
             case "Inequality":
