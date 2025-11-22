@@ -14,7 +14,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      dotnet-version: 9.0.x
+      dotnet-version: 10.0.x
     permissions:
       attestations: write
       id-token: write
@@ -25,12 +25,13 @@ jobs:
 
     steps:
     - name: Check out the project
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
     - name: Set up .NET ${{env.dotnet-version}}
-      uses: actions/setup-dotnet@v4
+      uses: actions/setup-dotnet@v5
       id: setup
       with:
         dotnet-version: ${{env.dotnet-version}}
+        dotnet-quality: ga
       env:
         NUGET_AUTH_TOKEN: ${{secrets.GITHUB_TOKEN}}
     - name: Create global.json to force use of .NET SDK ${{steps.setup.outputs.dotnet-version}}
@@ -38,19 +39,19 @@ jobs:
     - name: Run build script (${{matrix.configuration}})
       run: pwsh ./build-package.ps1 -WithBinLog -Configuration ${{matrix.configuration}}
     - name: "Artifact: MSBuild Logs"
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       if: failure()
       with:
         name: MSBuild Logs (${{matrix.configuration}})
         path: msbuild.*.binlog
     - name: "Artifact: NuGet Packages"
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: NuGet Packages (${{matrix.configuration}})
         path: "**/bin/${{matrix.configuration}}/*.nupkg"
     - name: "Attestations: NuGet Packages"
       if: matrix.configuration == 'Release' && startsWith(github.ref, 'refs/tags/v')
-      uses: actions/attest-build-provenance@v2
+      uses: actions/attest-build-provenance@v3
       with:
         subject-path: "**/bin/${{matrix.configuration}}/*.nupkg"
     - name: "Publish: GitHub Packages"
