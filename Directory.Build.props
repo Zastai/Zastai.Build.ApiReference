@@ -6,7 +6,7 @@
           Condition=" Exists($([MSBuild]::GetPathOfFileAbove('$(MSBuildThisFile)', '$(MSBuildThisFileDirectory)..'))) "/>
 
   <PropertyGroup>
-    <Copyright>Copyright © 2022, 2023, 2024 Tim Van Holder. All rights reserved.</Copyright>
+    <Copyright>Copyright © 2022, 2023, 2024, 2025 Tim Van Holder. All rights reserved.</Copyright>
     <RepositoryUrl>https://github.com/Zastai/Zastai.Build.ApiReference</RepositoryUrl>
   </PropertyGroup>
 
@@ -21,7 +21,7 @@
   <PropertyGroup>
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
     <ImplicitUsings>disable</ImplicitUsings>
-    <LangVersion>12</LangVersion>
+    <LangVersion>14</LangVersion>
     <Nullable>enable</Nullable>
     <PlatformTarget>AnyCPU</PlatformTarget>
   </PropertyGroup>
