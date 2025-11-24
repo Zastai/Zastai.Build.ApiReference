@@ -729,6 +729,9 @@ public abstract partial class CodeFormatter {
       if (!this.ShouldInclude(type)) {
         continue;
       }
+      if (type.IsExtensionBlock()) {
+        continue;
+      }
       if (nestedTypes.TryGetValue(type.Name, out var previousType)) {
         Trace.Fail(type.ToString(), $"Multiply defined nested type in {td}; previous was {previousType}.");
       }

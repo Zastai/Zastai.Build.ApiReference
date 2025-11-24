@@ -1201,13 +1201,8 @@ public class CSharpFormatter : CodeFormatter {
     sb.Append('(');
     if (md.HasParameters) {
       // Detect extension methods
-      if (md.HasCustomAttributes) {
-        foreach (var ca in md.CustomAttributes) {
-          if (ca.AttributeType.IsNamed("System.Runtime.CompilerServices", "ExtensionAttribute")) {
-            sb.Append("this ");
-            break;
-          }
-        }
+      if (md.IsMarkedAsExtension()) {
+        sb.Append("this ");
       }
       sb.AppendJoin(", ", md.Parameters.Select(this.Parameter));
     }

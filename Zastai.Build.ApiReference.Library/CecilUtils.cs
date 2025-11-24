@@ -129,9 +129,11 @@ internal static class CecilUtils {
     return null;
   }
 
+  public static bool HasAttribute(this ICustomAttributeProvider? cap, string ns, string name)
+    => cap is not null && cap.HasCustomAttributes && cap.CustomAttributes.Any(ca => ca.AttributeType.IsNamed(ns, name));
+
   public static bool HasCovariantReturn(this MethodDefinition md)
-    => md.HasCustomAttributes &&
-       md.CustomAttributes.Any(ca => ca.AttributeType.IsNamed("System.Runtime.CompilerServices", "PreserveBaseOverridesAttribute"));
+    => md.HasAttribute("System.Runtime.CompilerServices", "PreserveBaseOverridesAttribute");
 
   public static MethodDefinition? IfPublicApi(this MethodDefinition? method) {
     if (method is null) {
@@ -141,12 +143,10 @@ internal static class CecilUtils {
   }
 
   public static bool IsByRefLike(this TypeDefinition td)
-    => td.HasCustomAttributes &&
-       td.CustomAttributes.Any(ca => ca.AttributeType.IsNamed("System.Runtime.CompilerServices", "IsByRefLikeAttribute"));
+    => td.HasAttribute("System.Runtime.CompilerServices", "IsByRefLikeAttribute");
 
   private static bool IsCompilerGenerated(this TypeDefinition? td)
-    => td is not null && td.HasCustomAttributes &&
-       td.CustomAttributes.Any(ca => ca.AttributeType.IsNamed("System.Runtime.CompilerServices", "CompilerGeneratedAttribute"));
+    => td is not null && td.HasAttribute("System.Runtime.CompilerServices", "CompilerGeneratedAttribute");
 
   public static bool IsCompilerGenerated(this TypeReference tr) => tr.Resolve().IsCompilerGenerated();
 
@@ -256,6 +256,9 @@ internal static class CecilUtils {
     return false;
   }
 
+  public static bool IsExtensionBlock(this TypeDefinition td)
+    => td.IsSpecialName && td.IsMarkedAsExtension() && td.Name.StartsWith("<G>");
+
   // FIXME: Can the remove method differ? Does it matter?
   public static bool IsInternalApi(this EventDefinition ed) => ed.AddMethod.IsInternalApi();
 
@@ -270,6 +273,9 @@ internal static class CecilUtils {
   public static bool IsLocalType(this TypeReference tr, string? ns) => tr.IsLocalType() && tr.IsNamed(ns);
 
   public static bool IsLocalType(this TypeReference tr, string? ns, string name) => tr.IsLocalType() && tr.IsNamed(ns, name);
+
+  public static bool IsMarkedAsExtension(this ICustomAttributeProvider cap)
+    => cap.HasAttribute("System.Runtime.CompilerServices", "ExtensionAttribute");
 
   public static bool IsNamed(this TypeReference tr, string? ns) => tr.Namespace == ns;
 
@@ -299,8 +305,7 @@ internal static class CecilUtils {
     return false;
   }
 
-  public static bool IsParamArray(this ParameterDefinition pd)
-    => pd.HasCustomAttributes && pd.CustomAttributes.Any(ca => ca.AttributeType.IsNamed("System", "ParamArrayAttribute"));
+  public static bool IsParamArray(this ParameterDefinition pd) => pd.HasAttribute("System", "ParamArrayAttribute");
 
   // FIXME: Can the remove method differ? Does it matter?
   public static bool IsPublicApi(this EventDefinition ed) => ed.AddMethod.IsPublicApi();
@@ -313,20 +318,16 @@ internal static class CecilUtils {
     => td.IsPublic || td.IsNestedPublic || td.IsNestedFamily || td.IsNestedFamilyOrAssembly;
 
   public static bool IsReadOnly(this ICustomAttributeProvider? provider)
-    => provider is not null && provider.HasCustomAttributes &&
-       provider.CustomAttributes.Any(ca => ca.AttributeType.IsNamed("System.Runtime.CompilerServices", "IsReadOnlyAttribute"));
+    => provider.HasAttribute("System.Runtime.CompilerServices", "IsReadOnlyAttribute");
 
   public static bool IsRequired(this IMemberDefinition? md)
-    => md is not null && md.HasCustomAttributes &&
-       md.CustomAttributes.Any(ca => ca.AttributeType.IsNamed("System.Runtime.CompilerServices", "RequiredMemberAttribute"));
+    => md.HasAttribute("System.Runtime.CompilerServices", "RequiredMemberAttribute");
 
   public static bool IsScopedRef(this ParameterDefinition? pd)
-    => pd is not null && pd.HasCustomAttributes &&
-       pd.CustomAttributes.Any(ca => ca.AttributeType.IsNamed("System.Runtime.CompilerServices", "ScopedRefAttribute"));
+    => pd.HasAttribute("System.Runtime.CompilerServices", "ScopedRefAttribute");
 
   public static bool IsUnmanaged(this GenericParameter? gp)
-    => gp is not null && gp.HasCustomAttributes &&
-       gp.CustomAttributes.Any(ca => ca.AttributeType.IsNamed("System.Runtime.CompilerServices", "IsUnmanagedAttribute"));
+    => gp.HasAttribute("System.Runtime.CompilerServices", "IsUnmanagedAttribute");
 
   public static bool IsVoid(this TypeReference tr) => tr == tr.Module.TypeSystem.Void;
 
