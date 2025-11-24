@@ -354,6 +354,12 @@ internal static class CecilUtils {
 
     public bool IsLocalType(string? ns, string name) => tr.IsLocalType() && tr.IsNamed(ns, name);
 
+    public bool IsModifiedType(TypeReference elementType, string? ns, string modifier)
+      => tr is RequiredModifierType rmt && rmt.ElementType == elementType && rmt.ModifierType.IsNamed(ns, modifier);
+
+    public bool IsModifiedType(string? ns1, string element, string? ns2, string modifier)
+      => tr is RequiredModifierType rmt && rmt.ElementType.IsNamed(ns1, element) && rmt.ModifierType.IsNamed(ns2, modifier);
+
     public bool IsNamed(string? ns) => tr.Namespace == ns;
 
     public bool IsNamed(string? ns, string name) => tr.Namespace == ns && tr.Name == name;

@@ -424,8 +424,7 @@ public class CSharpFormatter : CodeFormatter {
           if (isUnmanaged) {
             // Expectation: First constraint is on ValueType modified by UnmanagedType; if so, write that as "unmanaged"
             // Note that UnmanagedType is neither a core library type nor a locally synthesized one.
-            if (ct is RequiredModifierType rmt && rmt.ElementType.IsNamed("System", "ValueType") &&
-                rmt.ModifierType.IsNamed("System.Runtime.InteropServices", "UnmanagedType")) {
+            if (ct.IsModifiedType("System", "ValueType", "System.Runtime.InteropServices", "UnmanagedType")) {
               sb.Append(this.CustomAttributesInline(gpc)).Append("unmanaged");
               first = false;
               isValueType = false;
@@ -1272,8 +1271,7 @@ public class CSharpFormatter : CodeFormatter {
     else if (method.IsSetter) {
       // For `init`, it's not an attribute on the setter method, but rather a "required modifier" on its return type (void).
       // A bit weird, but whatever.
-      if (method.ReturnType is RequiredModifierType rmt && rmt.ElementType == rmt.Module.TypeSystem.Void &&
-          rmt.ModifierType.IsNamed("System.Runtime.CompilerServices", "IsExternalInit")) {
+      if (method.ReturnType.IsModifiedType(method.Module.TypeSystem.Void, "System.Runtime.CompilerServices", "IsExternalInit")) {
         sb.Append("init");
       }
       else {
