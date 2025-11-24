@@ -729,7 +729,7 @@ public abstract partial class CodeFormatter {
       if (!this.ShouldInclude(type)) {
         continue;
       }
-      if (type.IsExtensionBlock()) {
+      if (type.IsExtensionBlock) {
         continue;
       }
       if (nestedTypes.TryGetValue(type.Name, out var previousType)) {
@@ -839,14 +839,14 @@ public abstract partial class CodeFormatter {
     return this._attributesToExclude.All(pattern => !name.Matches(pattern));
   }
 
-  private bool ShouldInclude(EventDefinition ed) => ed.IsPublicApi() || (this.IncludeInternals && ed.IsInternalApi());
+  private bool ShouldInclude(EventDefinition ed) => ed.IsPublicApi || (this.IncludeInternals && ed.IsInternalApi);
 
-  private bool ShouldInclude(FieldDefinition fd) => fd.IsPublicApi() || (this.IncludeInternals && fd.IsInternalApi());
+  private bool ShouldInclude(FieldDefinition fd) => fd.IsPublicApi || (this.IncludeInternals && fd.IsInternalApi);
 
   private bool ShouldInclude(MethodDefinition? md)
-    => md is not null && (md.IsPublicApi() || (this.IncludeInternals && md.IsInternalApi()));
+    => md is not null && (md.IsPublicApi || (this.IncludeInternals && md.IsInternalApi));
 
-  private bool ShouldInclude(TypeDefinition td) => td.IsPublicApi() || (this.IncludeInternals && td.IsInternalApi());
+  private bool ShouldInclude(TypeDefinition td) => td.IsPublicApi || (this.IncludeInternals && td.IsInternalApi);
 
   private IEnumerable<string?> TopLevelAttributes(AssemblyDefinition ad) {
     foreach (var line in this.CustomAttributes(ad)) {

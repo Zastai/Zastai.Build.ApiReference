@@ -114,7 +114,7 @@ public class CSharpFormatter : CodeFormatter {
     else if (md.IsVirtual) {
       // For some reason, static virtual methods in interfaces have IsReuseSlot set; that's currently the only situation where
       // static+virtual is valid, so we can just look at IsStatic to ignore the IsReuseSlot.
-      var isOverride = md is { IsReuseSlot: true, IsStatic: false } || (md.IsNewSlot && md.HasCovariantReturn());
+      var isOverride = md is { IsReuseSlot: true, IsStatic: false } || (md.IsNewSlot && md.HasCovariantReturn);
       sb.Append(isOverride ? "override " : "virtual ");
     }
     return sb.ToString();
@@ -352,7 +352,7 @@ public class CSharpFormatter : CodeFormatter {
     else {
       sb.Append("/* unexpected accessibility */ ");
     }
-    if (fd.IsRequired()) {
+    if (fd.IsRequired) {
       sb.Append("required ");
     }
     var isDecimalConstant = false;
@@ -412,7 +412,7 @@ public class CSharpFormatter : CodeFormatter {
     sb.Append("where ").Append(gp.Name).Append(" : ");
     var first = true;
     var isValueType = gp.HasNotNullableValueTypeConstraint;
-    var isUnmanaged = isValueType && gp.IsUnmanaged();
+    var isUnmanaged = isValueType && gp.IsUnmanaged;
     if (gp.HasReferenceTypeConstraint) {
       sb.Append("class");
       first = false;
@@ -798,7 +798,7 @@ public class CSharpFormatter : CodeFormatter {
       }
     }
     sb.Append(' ', indent).Append(this.Attributes(md));
-    if (md.IsReadOnly()) {
+    if (md.IsReadOnly) {
       sb.Append("readonly ");
     }
     var methodName = this.MethodName(md, out var returnTypeName);
@@ -1167,7 +1167,7 @@ public class CSharpFormatter : CodeFormatter {
   private string Parameter(ParameterDefinition pd) {
     var sb = new StringBuilder();
     sb.Append(this.CustomAttributesInline(pd));
-    if (pd.IsScopedRef()) {
+    if (pd.IsScopedRef) {
       sb.Append("scoped ");
     }
     if (pd.IsIn) {
@@ -1176,7 +1176,7 @@ public class CSharpFormatter : CodeFormatter {
     if (pd.IsOut) {
       sb.Append("out ");
     }
-    if (pd.IsParamArray()) {
+    if (pd.IsParamArray) {
       sb.Append("params ");
     }
     sb.Append(this.TypeName(pd.ParameterType, pd)).Append(' ').Append(pd.Name);
@@ -1201,7 +1201,7 @@ public class CSharpFormatter : CodeFormatter {
     sb.Append('(');
     if (md.HasParameters) {
       // Detect extension methods
-      if (md.IsMarkedAsExtension()) {
+      if (md.IsMarkedAsExtension) {
         sb.Append("this ");
       }
       sb.AppendJoin(", ", md.Parameters.Select(this.Parameter));
@@ -1228,7 +1228,7 @@ public class CSharpFormatter : CodeFormatter {
     {
       var sb = new StringBuilder();
       sb.Append(' ', indent);
-      if (pd.IsRequired()) {
+      if (pd.IsRequired) {
         sb.Append("required ");
       }
       sb.Append(this.TypeName(pd.PropertyType, pd)).Append(' ');
@@ -1263,7 +1263,7 @@ public class CSharpFormatter : CodeFormatter {
     }
     var sb = new StringBuilder();
     sb.Append(' ', indent).Append(this.Attributes(method));
-    if (method.IsReadOnly()) {
+    if (method.IsReadOnly) {
       sb.Append("readonly ");
     }
     if (method.IsGetter) {
@@ -1361,10 +1361,10 @@ public class CSharpFormatter : CodeFormatter {
       sb.Append("interface");
     }
     else if (td.IsValueType) {
-      if (td.IsReadOnly()) {
+      if (td.IsReadOnly) {
         sb.Append("readonly ");
       }
-      if (td.IsByRefLike()) {
+      if (td.IsByRefLike) {
         sb.Append("ref ");
       }
       sb.Append("struct");
@@ -1484,7 +1484,7 @@ public class CSharpFormatter : CodeFormatter {
     if (tr is ByReferenceType brt) { // => ref T
       // omit the "ref" for "out" parameters - it's covered by the "out"
       if (context is not ParameterDefinition { IsOut: true }) {
-        prefix = context.IsReadOnly() ? "ref readonly " : "ref ";
+        prefix = context.IsReadOnly ? "ref readonly " : "ref ";
       }
       tr = brt.ElementType;
     }
@@ -1581,7 +1581,7 @@ public class CSharpFormatter : CodeFormatter {
         ++tnc.NullableIndex;
       }
     }
-    else if (!tr.IsVoid()) {
+    else if (!tr.IsVoid) {
       nullability = tnc.Main?.GetNullability(tnc.Method, tnc.Type, tnc.NullableIndex++);
     }
     // Check for System.Nullable<T> and make it T?

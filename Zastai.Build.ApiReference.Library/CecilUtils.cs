@@ -30,10 +30,10 @@ internal static class CecilUtils {
   extension(EventDefinition ed) {
 
     // FIXME: Can the remove method differ? Does it matter?
-    public bool IsInternalApi() => ed.AddMethod.IsInternalApi();
+    public bool IsInternalApi => ed.AddMethod.IsInternalApi;
 
     // FIXME: Can the remove method differ? Does it matter?
-    public bool IsPublicApi() => ed.AddMethod.IsPublicApi();
+    public bool IsPublicApi => ed.AddMethod.IsPublicApi;
 
   }
 
@@ -88,15 +88,15 @@ internal static class CecilUtils {
       return false;
     }
 
-    public bool IsInternalApi() => fd.IsAssembly || fd.IsFamilyAndAssembly;
+    public bool IsInternalApi => fd.IsAssembly || fd.IsFamilyAndAssembly;
 
-    public bool IsPublicApi() => fd.IsPublic || fd.IsFamily || fd.IsFamilyOrAssembly;
+    public bool IsPublicApi => fd.IsPublic || fd.IsFamily || fd.IsFamilyOrAssembly;
 
   }
 
   extension(GenericParameter? gp) {
 
-    public bool IsUnmanaged() => gp.HasAttribute("System.Runtime.CompilerServices", "IsUnmanagedAttribute");
+    public bool IsUnmanaged => gp.HasAttribute("System.Runtime.CompilerServices", "IsUnmanagedAttribute");
 
   }
 
@@ -105,8 +105,7 @@ internal static class CecilUtils {
     public Nullability? GetNullability(MethodDefinition? context, int idx = 0)
       => cap?.GetNullability(idx) ?? context.GetNullabilityContext();
 
-    public Nullability? GetNullability(MethodDefinition? methodContext,
-                                       TypeDefinition? typeContext, int idx = 0)
+    public Nullability? GetNullability(MethodDefinition? methodContext, TypeDefinition? typeContext, int idx = 0)
       => cap?.GetNullability(idx) ?? methodContext.GetNullabilityContext() ?? typeContext.GetNullabilityContext();
 
     public Nullability? GetNullability(TypeDefinition? context, int idx = 0)
@@ -211,7 +210,7 @@ internal static class CecilUtils {
       return false;
     }
 
-    public bool IsMarkedAsExtension() => cap.HasAttribute("System.Runtime.CompilerServices", "ExtensionAttribute");
+    public bool IsMarkedAsExtension => cap.HasAttribute("System.Runtime.CompilerServices", "ExtensionAttribute");
 
     public bool IsNativeInteger(int idx) {
       if (cap is not null && cap.HasCustomAttributes) {
@@ -237,13 +236,13 @@ internal static class CecilUtils {
       return false;
     }
 
-    public bool IsReadOnly() => cap.HasAttribute("System.Runtime.CompilerServices", "IsReadOnlyAttribute");
+    public bool IsReadOnly => cap.HasAttribute("System.Runtime.CompilerServices", "IsReadOnlyAttribute");
 
   }
 
   extension(IMemberDefinition? md) {
 
-    public bool IsRequired() => md.HasAttribute("System.Runtime.CompilerServices", "RequiredMemberAttribute");
+    public bool IsRequired => md.HasAttribute("System.Runtime.CompilerServices", "RequiredMemberAttribute");
 
   }
 
@@ -261,26 +260,21 @@ internal static class CecilUtils {
       return null;
     }
 
-    public bool HasCovariantReturn() => md.HasAttribute("System.Runtime.CompilerServices", "PreserveBaseOverridesAttribute");
+    public bool HasCovariantReturn => md.HasAttribute("System.Runtime.CompilerServices", "PreserveBaseOverridesAttribute");
 
-    public MethodDefinition? IfPublicApi() {
-      if (md is null) {
-        return null;
-      }
-      return md.IsPublicApi() ? md : null;
-    }
+    public MethodDefinition? IfPublicApi() => md.IsPublicApi ? md : null;
 
-    public bool IsInternalApi() => md is not null && (md.IsAssembly || md.IsFamilyAndAssembly);
+    public bool IsInternalApi => md is not null && (md.IsAssembly || md.IsFamilyAndAssembly);
 
-    public bool IsPublicApi() => md is not null && (md.IsPublic || md.IsFamily || md.IsFamilyOrAssembly);
+    public bool IsPublicApi => md is not null && (md.IsPublic || md.IsFamily || md.IsFamilyOrAssembly);
 
   }
 
   extension(ParameterDefinition? pd) {
 
-    public bool IsParamArray() => pd.HasAttribute("System", "ParamArrayAttribute");
+    public bool IsParamArray => pd.HasAttribute("System", "ParamArrayAttribute");
 
-    public bool IsScopedRef() => pd.HasAttribute("System.Runtime.CompilerServices", "ScopedRefAttribute");
+    public bool IsScopedRef => pd.HasAttribute("System.Runtime.CompilerServices", "ScopedRefAttribute");
 
   }
 
@@ -298,11 +292,9 @@ internal static class CecilUtils {
       return null;
     }
 
-    public bool IsByRefLike()
-      => td.HasAttribute("System.Runtime.CompilerServices", "IsByRefLikeAttribute");
+    public bool IsByRefLike => td.HasAttribute("System.Runtime.CompilerServices", "IsByRefLikeAttribute");
 
-    private bool IsCompilerGenerated()
-      => td is not null && td.HasAttribute("System.Runtime.CompilerServices", "CompilerGeneratedAttribute");
+    private bool IsCompilerGenerated => td.HasAttribute("System.Runtime.CompilerServices", "CompilerGeneratedAttribute");
 
     public bool IsDelegate([NotNullWhen(true)] out MethodDefinition? invoke) {
       invoke = null;
@@ -333,19 +325,22 @@ internal static class CecilUtils {
       return invoke is not null;
     }
 
-    public bool IsExtensionBlock()
-      => td is not null && (td.IsSpecialName && td.IsMarkedAsExtension() && td.Name.StartsWith("<G>"));
+    public bool IsExtensionBlock => td is { IsSpecialName: true, IsMarkedAsExtension: true } && td.Name.StartsWith("<G>");
 
-    public bool IsInternalApi() => td is not null && (td.IsNestedAssembly || td.IsNestedFamilyAndAssembly || td.IsNotPublic);
+    public bool IsInternalApi => td is not null && (td.IsNestedAssembly || td.IsNestedFamilyAndAssembly || td.IsNotPublic);
 
-    public bool IsPublicApi()
+    public bool IsPublicApi
       => td is not null && (td.IsPublic || td.IsNestedPublic || td.IsNestedFamily || td.IsNestedFamilyOrAssembly);
 
   }
 
   extension(TypeReference tr) {
 
-    public bool IsCompilerGenerated() => tr.Resolve().IsCompilerGenerated();
+    public bool IsCompilerGenerated {
+      get {
+        return tr.Resolve().IsCompilerGenerated;
+      }
+    }
 
     public bool IsCoreLibraryType() => tr.Scope == tr.Module.TypeSystem.CoreLibrary;
 
@@ -363,7 +358,7 @@ internal static class CecilUtils {
 
     public bool IsNamed(string? ns, string name) => tr.Namespace == ns && tr.Name == name;
 
-    public bool IsVoid() => tr == tr.Module.TypeSystem.Void;
+    public bool IsVoid => tr == tr.Module.TypeSystem.Void;
 
     public string NonGenericName() {
       var name = tr.Name;
