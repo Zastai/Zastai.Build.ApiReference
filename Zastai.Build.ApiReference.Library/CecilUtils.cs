@@ -186,6 +186,8 @@ internal static class CecilUtils {
     public bool HasAttribute(string ns, string name)
       => cap is not null && cap.HasCustomAttributes && cap.CustomAttributes.Any(ca => ca.AttributeType.IsNamed(ns, name));
 
+    public bool IsCompilerGenerated => cap.HasAttribute("System.Runtime.CompilerServices", "CompilerGeneratedAttribute");
+
     public bool IsDynamic(int idx) {
       if (cap is not null && cap.HasCustomAttributes) {
         foreach (var ca in cap.CustomAttributes) {
@@ -294,8 +296,6 @@ internal static class CecilUtils {
 
     public bool IsByRefLike => td.HasAttribute("System.Runtime.CompilerServices", "IsByRefLikeAttribute");
 
-    private bool IsCompilerGenerated => td.HasAttribute("System.Runtime.CompilerServices", "CompilerGeneratedAttribute");
-
     public bool IsDelegate([NotNullWhen(true)] out MethodDefinition? invoke) {
       invoke = null;
       if (td is null) {
@@ -336,11 +336,7 @@ internal static class CecilUtils {
 
   extension(TypeReference tr) {
 
-    public bool IsCompilerGenerated {
-      get {
-        return tr.Resolve().IsCompilerGenerated;
-      }
-    }
+    public bool IsCompilerGenerated => ((ICustomAttributeProvider) tr.Resolve()).IsCompilerGenerated;
 
     public bool IsCoreLibraryType() => tr.Scope == tr.Module.TypeSystem.CoreLibrary;
 

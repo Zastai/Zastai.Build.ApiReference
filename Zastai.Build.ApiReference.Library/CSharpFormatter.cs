@@ -59,7 +59,7 @@ public class CSharpFormatter : CodeFormatter {
     public readonly MethodDefinition? Method = method;
 
     /// <summary>The enclosing type for this context, if applicable.</summary>
-    public readonly TypeDefinition? Type = type;
+    public readonly TypeDefinition? Type = type ?? method?.DeclaringType;
 
     /// <summary>The current value index for <c>[Dynamic]</c> attribute checks.</summary>
     public int DynamicIndex;
@@ -328,6 +328,76 @@ public class CSharpFormatter : CodeFormatter {
   }
 
   /// <inheritdoc />
+  protected override IEnumerable<string?> ExtensionBlock(TypeDefinition td, int indent) {
+    // It is not clear whether a <G> class will always have a single <M> class in it, but given that memmbers get attributes linking
+    // to the <M> class name, let's assume there can be multiples.
+    if (!td.HasNestedTypes) {
+      yield return null;
+      var sb = new StringBuilder();
+      sb.Append(' ', indent).Append("/* extension block group class contains no marker classes */");
+      yield return sb.ToString();
+    }
+    foreach (var markerType in td.NestedTypes) {
+      yield return null;
+      if (markerType is not { IsSpecialName: true } || !markerType.Name.StartsWith("<M>")) {
+        var sb = new StringBuilder();
+        sb.Append(' ', indent).Append("/* extension block group class contains unexpected non-marker class */");
+        yield return sb.ToString();
+        continue;
+      }
+      // FIXME: Or should there be a single context at the <G> level?
+      var tnc = new TypeNameContext(markerType, null, markerType);
+      {
+        var sb = new StringBuilder();
+        sb.Append(' ', indent).Append("extension");
+        sb.Append(this.GenericParameters(markerType, tnc));
+        {
+          // FIXME: Is the marker type supposed to contain anything other than the special `<Extension>$` method?
+          var markerMethod = markerType.HasMethods && markerType.Methods.Count == 1 ? markerType.Methods[0] : null;
+          if (markerMethod is { IsSpecialName: true, IsCompilerGenerated: true, Name: "<Extension>$" }) {
+            sb.Append(this.Parameters(markerMethod));
+          }
+          else {
+            sb.Append("(/* no marker method */)");
+          }
+        }
+        {
+          var constraints = this.GenericParameterConstraints(markerType, 0).ToList();
+          if (constraints.Count > 1) {
+            yield return sb.ToString();
+            sb.Clear();
+            sb.Append(' ', indent + 2);
+            while (constraints.Count > 1) {
+              sb.Append(constraints[0]);
+              constraints.RemoveAt(0);
+            }
+            yield return sb.ToString();
+            sb.Clear();
+            sb.Append(' ', indent + 1);
+          }
+          if (constraints.Count == 1) {
+            sb.Append(' ').Append(constraints[0]);
+          }
+        }
+        sb.Append(' ').Append('{');
+        yield return sb.ToString();
+      }
+      foreach (var line in this.Properties(td, indent + 2)) {
+        yield return line;
+      }
+      foreach (var line in this.Methods(td, indent + 2)) {
+        yield return line;
+      }
+      yield return null;
+      {
+        var sb = new StringBuilder();
+        sb.Append(' ', indent).Append('}');
+        yield return sb.ToString();
+      }
+    }
+  }
+
+  /// <inheritdoc />
   protected override string Field(FieldDefinition fd, int indent) {
     var sb = new StringBuilder();
     sb.Append(' ', indent);
@@ -532,6 +602,7 @@ public class CSharpFormatter : CodeFormatter {
         switch (at.Name) {
           case "AsyncStateMachineAttribute":
           case "CompilerGeneratedAttribute":
+          case "ExtensionMarkerAttribute":
           case "IteratorStateMachineAttribute":
           case "ReferenceAssemblyAttribute":
             // Guaranteed not to be relevant to the API.
@@ -1447,6 +1518,9 @@ public class CSharpFormatter : CodeFormatter {
     foreach (var line in this.Methods(td, indent + 2)) {
       yield return line;
     }
+    foreach (var line in this.ExtensionBlocks(td, indent + 2)) {
+      yield return line;
+    }
     foreach (var line in this.NestedTypes(td, indent + 2)) {
       yield return line;
     }
@@ -1774,6 +1848,10 @@ public class CSharpFormatter : CodeFormatter {
           declaringType = null;
           break;
         }
+      }
+      if (declaringType is not null && declaringType == tnc.Type) {
+        // FIXME: Is this always appropriate? Should this traverse the context type's declaring types too?
+        declaringType = null;
       }
       if (declaringType is not null) {
         // FIXME: Does this need a context? Should it affect the indexes?
