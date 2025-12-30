@@ -66,7 +66,7 @@
 
     <!-- Create the output directory (if requested to do so). -->
     <MakeDir Directories="$([System.IO.Path]::GetDirectoryName($([System.IO.Path]::GetFullPath('$(ApiReferenceOutputPath)'))))"
-             Condition=" '$(CreateApiReferenceOutputDir)' == 'true' "/>
+             Condition=" '$(CreateApiReferenceOutputDir)' == 'true' " />
 
     <!-- Enum Handling -->
     <ItemGroup>
@@ -96,12 +96,13 @@
                           ExcludeAttributes="@(APIReferenceExcludeAttribute)"
                           Format="$(_ApiReferenceFormat)"
                           IncludeAttributes="@(APIReferenceIncludeAttribute)"
+                          IncludeExtensionBlocks="$(IncludeExtensionBlocksInApiReference)"
                           LibraryPath="@(_DirectoriesContainingReferencedAssemblies)"
                           OutputPath="$(ApiReferenceOutputPath)"
                           Visibility="$(VisibilityForApiReference)" />
 
     <ItemGroup>
-      <FileWrites Condition=" '$(SkipApiReferenceOutputPathFileWrite)' != 'true' " Include="$(ApiReferenceOutputPath) "/>
+      <FileWrites Condition=" '$(SkipApiReferenceOutputPathFileWrite)' != 'true' " Include="$(ApiReferenceOutputPath) " />
     </ItemGroup>
 
     <Message Text="Generated API Reference: $(ApiReferenceOutputPath)" Importance="high" />

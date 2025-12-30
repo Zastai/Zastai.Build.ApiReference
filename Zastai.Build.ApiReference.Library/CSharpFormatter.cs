@@ -59,7 +59,7 @@ public class CSharpFormatter : CodeFormatter {
     public readonly MethodDefinition? Method = method;
 
     /// <summary>The enclosing type for this context, if applicable.</summary>
-    public readonly TypeDefinition? Type = type;
+    public readonly TypeDefinition? Type = type ?? method?.DeclaringType;
 
     /// <summary>The current value index for <c>[Dynamic]</c> attribute checks.</summary>
     public int DynamicIndex;
@@ -114,7 +114,7 @@ public class CSharpFormatter : CodeFormatter {
     else if (md.IsVirtual) {
       // For some reason, static virtual methods in interfaces have IsReuseSlot set; that's currently the only situation where
       // static+virtual is valid, so we can just look at IsStatic to ignore the IsReuseSlot.
-      var isOverride = md is { IsReuseSlot: true, IsStatic: false } || (md.IsNewSlot && md.HasCovariantReturn());
+      var isOverride = md is { IsReuseSlot: true, IsStatic: false } || (md.IsNewSlot && md.HasCovariantReturn);
       sb.Append(isOverride ? "override " : "virtual ");
     }
     return sb.ToString();
@@ -328,6 +328,76 @@ public class CSharpFormatter : CodeFormatter {
   }
 
   /// <inheritdoc />
+  protected override IEnumerable<string?> ExtensionBlock(TypeDefinition td, int indent) {
+    // It is not clear whether a <G> class will always have a single <M> class in it, but given that memmbers get attributes linking
+    // to the <M> class name, let's assume there can be multiples.
+    if (!td.HasNestedTypes) {
+      yield return null;
+      var sb = new StringBuilder();
+      sb.Append(' ', indent).Append("/* extension block group class contains no marker classes */");
+      yield return sb.ToString();
+    }
+    foreach (var markerType in td.NestedTypes) {
+      yield return null;
+      if (markerType is not { IsSpecialName: true } || !markerType.Name.StartsWith("<M>")) {
+        var sb = new StringBuilder();
+        sb.Append(' ', indent).Append("/* extension block group class contains unexpected non-marker class */");
+        yield return sb.ToString();
+        continue;
+      }
+      // FIXME: Or should there be a single context at the <G> level?
+      var tnc = new TypeNameContext(markerType, null, markerType);
+      {
+        var sb = new StringBuilder();
+        sb.Append(' ', indent).Append("extension");
+        sb.Append(this.GenericParameters(markerType, tnc));
+        {
+          // FIXME: Is the marker type supposed to contain anything other than the special `<Extension>$` method?
+          var markerMethod = markerType.HasMethods && markerType.Methods.Count == 1 ? markerType.Methods[0] : null;
+          if (markerMethod is { IsSpecialName: true, IsCompilerGenerated: true, Name: "<Extension>$" }) {
+            sb.Append(this.Parameters(markerMethod));
+          }
+          else {
+            sb.Append("(/* no marker method */)");
+          }
+        }
+        {
+          var constraints = this.GenericParameterConstraints(markerType, 0).ToList();
+          if (constraints.Count > 1) {
+            yield return sb.ToString();
+            sb.Clear();
+            sb.Append(' ', indent + 2);
+            while (constraints.Count > 1) {
+              sb.Append(constraints[0]);
+              constraints.RemoveAt(0);
+            }
+            yield return sb.ToString();
+            sb.Clear();
+            sb.Append(' ', indent + 1);
+          }
+          if (constraints.Count == 1) {
+            sb.Append(' ').Append(constraints[0]);
+          }
+        }
+        sb.Append(' ').Append('{');
+        yield return sb.ToString();
+      }
+      foreach (var line in this.Properties(td, indent + 2)) {
+        yield return line;
+      }
+      foreach (var line in this.Methods(td, indent + 2)) {
+        yield return line;
+      }
+      yield return null;
+      {
+        var sb = new StringBuilder();
+        sb.Append(' ', indent).Append('}');
+        yield return sb.ToString();
+      }
+    }
+  }
+
+  /// <inheritdoc />
   protected override string Field(FieldDefinition fd, int indent) {
     var sb = new StringBuilder();
     sb.Append(' ', indent);
@@ -352,7 +422,7 @@ public class CSharpFormatter : CodeFormatter {
     else {
       sb.Append("/* unexpected accessibility */ ");
     }
-    if (fd.IsRequired()) {
+    if (fd.IsRequired) {
       sb.Append("required ");
     }
     var isDecimalConstant = false;
@@ -412,7 +482,7 @@ public class CSharpFormatter : CodeFormatter {
     sb.Append("where ").Append(gp.Name).Append(" : ");
     var first = true;
     var isValueType = gp.HasNotNullableValueTypeConstraint;
-    var isUnmanaged = isValueType && gp.IsUnmanaged();
+    var isUnmanaged = isValueType && gp.IsUnmanaged;
     if (gp.HasReferenceTypeConstraint) {
       sb.Append("class");
       first = false;
@@ -424,8 +494,7 @@ public class CSharpFormatter : CodeFormatter {
           if (isUnmanaged) {
             // Expectation: First constraint is on ValueType modified by UnmanagedType; if so, write that as "unmanaged"
             // Note that UnmanagedType is neither a core library type nor a locally synthesized one.
-            if (ct is RequiredModifierType rmt && rmt.ElementType.IsNamed("System", "ValueType") &&
-                rmt.ModifierType.IsNamed("System.Runtime.InteropServices", "UnmanagedType")) {
+            if (ct.IsModifiedType("System", "ValueType", "System.Runtime.InteropServices", "UnmanagedType")) {
               sb.Append(this.CustomAttributesInline(gpc)).Append("unmanaged");
               first = false;
               isValueType = false;
@@ -533,6 +602,7 @@ public class CSharpFormatter : CodeFormatter {
         switch (at.Name) {
           case "AsyncStateMachineAttribute":
           case "CompilerGeneratedAttribute":
+          case "ExtensionMarkerAttribute":
           case "IteratorStateMachineAttribute":
           case "ReferenceAssemblyAttribute":
             // Guaranteed not to be relevant to the API.
@@ -798,7 +868,7 @@ public class CSharpFormatter : CodeFormatter {
       }
     }
     sb.Append(' ', indent).Append(this.Attributes(md));
-    if (md.IsReadOnly()) {
+    if (md.IsReadOnly) {
       sb.Append("readonly ");
     }
     var methodName = this.MethodName(md, out var returnTypeName);
@@ -1167,7 +1237,7 @@ public class CSharpFormatter : CodeFormatter {
   private string Parameter(ParameterDefinition pd) {
     var sb = new StringBuilder();
     sb.Append(this.CustomAttributesInline(pd));
-    if (pd.IsScopedRef()) {
+    if (pd.IsScopedRef) {
       sb.Append("scoped ");
     }
     if (pd.IsIn) {
@@ -1176,7 +1246,7 @@ public class CSharpFormatter : CodeFormatter {
     if (pd.IsOut) {
       sb.Append("out ");
     }
-    if (pd.IsParamArray()) {
+    if (pd.IsParamArray) {
       sb.Append("params ");
     }
     sb.Append(this.TypeName(pd.ParameterType, pd)).Append(' ').Append(pd.Name);
@@ -1201,13 +1271,8 @@ public class CSharpFormatter : CodeFormatter {
     sb.Append('(');
     if (md.HasParameters) {
       // Detect extension methods
-      if (md.HasCustomAttributes) {
-        foreach (var ca in md.CustomAttributes) {
-          if (ca.AttributeType.IsNamed("System.Runtime.CompilerServices", "ExtensionAttribute")) {
-            sb.Append("this ");
-            break;
-          }
-        }
+      if (md.IsMarkedAsExtension) {
+        sb.Append("this ");
       }
       sb.AppendJoin(", ", md.Parameters.Select(this.Parameter));
     }
@@ -1233,7 +1298,7 @@ public class CSharpFormatter : CodeFormatter {
     {
       var sb = new StringBuilder();
       sb.Append(' ', indent);
-      if (pd.IsRequired()) {
+      if (pd.IsRequired) {
         sb.Append("required ");
       }
       sb.Append(this.TypeName(pd.PropertyType, pd)).Append(' ');
@@ -1268,7 +1333,7 @@ public class CSharpFormatter : CodeFormatter {
     }
     var sb = new StringBuilder();
     sb.Append(' ', indent).Append(this.Attributes(method));
-    if (method.IsReadOnly()) {
+    if (method.IsReadOnly) {
       sb.Append("readonly ");
     }
     if (method.IsGetter) {
@@ -1277,8 +1342,7 @@ public class CSharpFormatter : CodeFormatter {
     else if (method.IsSetter) {
       // For `init`, it's not an attribute on the setter method, but rather a "required modifier" on its return type (void).
       // A bit weird, but whatever.
-      if (method.ReturnType is RequiredModifierType rmt && rmt.ElementType == rmt.Module.TypeSystem.Void &&
-          rmt.ModifierType.IsNamed("System.Runtime.CompilerServices", "IsExternalInit")) {
+      if (method.ReturnType.IsModifiedType(method.Module.TypeSystem.Void, "System.Runtime.CompilerServices", "IsExternalInit")) {
         sb.Append("init");
       }
       else {
@@ -1366,10 +1430,10 @@ public class CSharpFormatter : CodeFormatter {
       sb.Append("interface");
     }
     else if (td.IsValueType) {
-      if (td.IsReadOnly()) {
+      if (td.IsReadOnly) {
         sb.Append("readonly ");
       }
-      if (td.IsByRefLike()) {
+      if (td.IsByRefLike) {
         sb.Append("ref ");
       }
       sb.Append("struct");
@@ -1454,6 +1518,9 @@ public class CSharpFormatter : CodeFormatter {
     foreach (var line in this.Methods(td, indent + 2)) {
       yield return line;
     }
+    foreach (var line in this.ExtensionBlocks(td, indent + 2)) {
+      yield return line;
+    }
     foreach (var line in this.NestedTypes(td, indent + 2)) {
       yield return line;
     }
@@ -1489,7 +1556,7 @@ public class CSharpFormatter : CodeFormatter {
     if (tr is ByReferenceType brt) { // => ref T
       // omit the "ref" for "out" parameters - it's covered by the "out"
       if (context is not ParameterDefinition { IsOut: true }) {
-        prefix = context.IsReadOnly() ? "ref readonly " : "ref ";
+        prefix = context.IsReadOnly ? "ref readonly " : "ref ";
       }
       tr = brt.ElementType;
     }
@@ -1586,7 +1653,7 @@ public class CSharpFormatter : CodeFormatter {
         ++tnc.NullableIndex;
       }
     }
-    else if (!tr.IsVoid()) {
+    else if (!tr.IsVoid) {
       nullability = tnc.Main?.GetNullability(tnc.Method, tnc.Type, tnc.NullableIndex++);
     }
     // Check for System.Nullable<T> and make it T?
@@ -1781,6 +1848,10 @@ public class CSharpFormatter : CodeFormatter {
           declaringType = null;
           break;
         }
+      }
+      if (declaringType is not null && declaringType == tnc.Type) {
+        // FIXME: Is this always appropriate? Should this traverse the context type's declaring types too?
+        declaringType = null;
       }
       if (declaringType is not null) {
         // FIXME: Does this need a context? Should it affect the indexes?

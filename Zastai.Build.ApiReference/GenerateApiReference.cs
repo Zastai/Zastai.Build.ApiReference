@@ -34,6 +34,8 @@ public sealed class GenerateApiReference : ITask {
 
   public ITaskItem[] IncludeAttributes { get; set; } = [];
 
+  public bool IncludeExtensionBlocks { get; set; }
+
   public ITaskItem[] LibraryPath { get; set; } = [];
 
   [Required]
@@ -148,6 +150,7 @@ public sealed class GenerateApiReference : ITask {
     formatter.EnableHexEnums(handleHexEnums);
     formatter.ExcludeCustomAttributes(excludedAttributes);
     formatter.IncludeCustomAttributes(includedAttributes);
+    formatter.IncludeExtensionBlocks = this.IncludeExtensionBlocks;
     formatter.IncludeInternals = includeInternals;
     try {
       using var reference = new StreamWriter(File.Create(referenceSource), Encoding.UTF8);

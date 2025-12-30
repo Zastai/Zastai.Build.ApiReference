@@ -12,15 +12,6 @@ namespace Zastai.Build.ApiReference;
 /// <summary>A class that will extract and format the public API for an assembly.</summary>
 public abstract partial class CodeFormatter {
 
-  /// <summary>The name of the namespace currently being processed.</summary>
-  protected string? CurrentNamespace { get; private set; }
-
-  /// <summary>The type definition currently being processed.</summary>
-  protected TypeDefinition? CurrentType { get; private set; }
-
-  /// <summary>The number of spaces to be used to indent a top-level type.</summary>
-  protected virtual int TopLevelTypeIndent => 0;
-
   private readonly HashSet<string> _attributesToExclude = [];
 
   private readonly HashSet<string> _attributesToInclude = [];
@@ -66,6 +57,12 @@ public abstract partial class CodeFormatter {
     this._attributesToInclude.Clear();
     this._attributesToExclude.Clear();
   }
+
+  /// <summary>The name of the namespace currently being processed.</summary>
+  protected string? CurrentNamespace { get; private set; }
+
+  /// <summary>The type definition currently being processed.</summary>
+  protected TypeDefinition? CurrentType { get; private set; }
 
   /// <summary>Formats a custom attribute.</summary>
   /// <param name="ca">The custom attribute to format.</param>
@@ -231,6 +228,20 @@ public abstract partial class CodeFormatter {
     }
   }
 
+  /// <summary>Adds patterns indicating attributes that should be excluded from the output.</summary>
+  /// <param name="patterns">
+  /// The patterns to exclude (using simple shell wildcards: <c>*</c> or <c>?</c>). Note that matches are against the internal name
+  /// of the attribute, so <c>Foo/BarAttribute`1</c> for a <c>BarAttribute&lt;T&gt;</c> attribute type nested in a <c>Foo</c> class.
+  /// </param>
+  public void ExcludeCustomAttributes(IEnumerable<string> patterns) {
+    foreach (var pattern in patterns) {
+      if (string.IsNullOrWhiteSpace(pattern)) {
+        continue;
+      }
+      this._attributesToExclude.Add(pattern.Trim());
+    }
+  }
+
   private IEnumerable<string?> ExportedTypes(AssemblyDefinition ad) {
     var exportedTypes = new SortedDictionary<string, IDictionary<string, ExportedType>>();
     foreach (var md in ad.Modules) {
@@ -254,24 +265,41 @@ public abstract partial class CodeFormatter {
     return exportedTypes.Count == 0 ? [] : this.ExportedTypes(exportedTypes);
   }
 
-  /// <summary>Adds patterns indicating attributes that should be excluded from the output.</summary>
-  /// <param name="patterns">
-  /// The patterns to exclude (using simple shell wildcards: <c>*</c> or <c>?</c>). Note that matches are against the internal name
-  /// of the attribute, so <c>Foo/BarAttribute`1</c> for a <c>BarAttribute&lt;T&gt;</c> attribute type nested in a <c>Foo</c> class.
-  /// </param>
-  public void ExcludeCustomAttributes(IEnumerable<string> patterns) {
-    foreach (var pattern in patterns) {
-      if (string.IsNullOrWhiteSpace(pattern)) {
-        continue;
-      }
-      this._attributesToExclude.Add(pattern.Trim());
-    }
-  }
-
   /// <summary>Formats the types exported by an assembly.</summary>
   /// <param name="exportedTypes">The exported types (grouped by their scope).</param>
   /// <returns>The formatted exported types.</returns>
   protected abstract IEnumerable<string?> ExportedTypes(SortedDictionary<string, IDictionary<string, ExportedType>> exportedTypes);
+
+  /// <summary>Formats an extension block.</summary>
+  /// <param name="td">The type representing the extension block.</param>
+  /// <param name="indent">The number of spaces of indentation to use.</param>
+  /// <returns>The formatted field (one line).</returns>
+  protected abstract IEnumerable<string?> ExtensionBlock(TypeDefinition td, int indent);
+
+  /// <summary>Formats the extension blocks declared by a type.</summary>
+  /// <param name="td">The type to process.</param>
+  /// <param name="indent">The number of spaces of indentation to use.</param>
+  /// <returns>The formatted blocks.</returns>
+  protected IEnumerable<string?> ExtensionBlocks(TypeDefinition td, int indent) {
+    if (!this.IncludeExtensionBlocks || !td.HasNestedTypes) {
+      yield break;
+    }
+    var blocks = new List<TypeDefinition>();
+    foreach (var type in td.NestedTypes) {
+      if (!this.ShouldInclude(type) || !type.IsExtensionBlock || type is { HasMethods: false, HasProperties: false }) {
+        continue;
+      }
+      blocks.Add(type);
+    }
+    if (blocks.Count == 0) {
+      yield break;
+    }
+    foreach (var block in blocks) {
+      foreach (var line in this.ExtensionBlock(block, indent)) {
+        yield return line;
+      }
+    }
+  }
 
   /// <summary>Formats a field.</summary>
   /// <param name="fd">The field to format.</param>
@@ -527,7 +555,14 @@ public abstract partial class CodeFormatter {
   }
 
   /// <summary>
-  /// Indicates whether the public API should be considered to include <code>internal</code> and <code>private protected</code>
+  /// Determines whether extension blocks (as introduced by C# 14) will also be present in the produced API reference.<br/>
+  /// By default, they are not, because the implementing methods are always included (they are not marked so cannot be easily
+  /// identified for omission). As such, the extension blocks only duplicate information.
+  /// </summary>
+  public bool IncludeExtensionBlocks { get; set; }
+
+  /// <summary>
+  /// Determines whether the public API should be considered to include <code>internal</code> and <code>private protected</code>
   /// items instead of only <code>public</code> and <code>protected</code> ones.
   /// </summary>
   public bool IncludeInternals { get; set; }
@@ -729,6 +764,9 @@ public abstract partial class CodeFormatter {
       if (!this.ShouldInclude(type)) {
         continue;
       }
+      if (type.IsExtensionBlock) {
+        continue;
+      }
       if (nestedTypes.TryGetValue(type.Name, out var previousType)) {
         Trace.Fail(type.ToString(), $"Multiply defined nested type in {td}; previous was {previousType}.");
       }
@@ -836,14 +874,14 @@ public abstract partial class CodeFormatter {
     return this._attributesToExclude.All(pattern => !name.Matches(pattern));
   }
 
-  private bool ShouldInclude(EventDefinition ed) => ed.IsPublicApi() || (this.IncludeInternals && ed.IsInternalApi());
+  private bool ShouldInclude(EventDefinition ed) => ed.IsPublicApi || (this.IncludeInternals && ed.IsInternalApi);
 
-  private bool ShouldInclude(FieldDefinition fd) => fd.IsPublicApi() || (this.IncludeInternals && fd.IsInternalApi());
+  private bool ShouldInclude(FieldDefinition fd) => fd.IsPublicApi || (this.IncludeInternals && fd.IsInternalApi);
 
   private bool ShouldInclude(MethodDefinition? md)
-    => md is not null && (md.IsPublicApi() || (this.IncludeInternals && md.IsInternalApi()));
+    => md is not null && (md.IsPublicApi || (this.IncludeInternals && md.IsInternalApi));
 
-  private bool ShouldInclude(TypeDefinition td) => td.IsPublicApi() || (this.IncludeInternals && td.IsInternalApi());
+  private bool ShouldInclude(TypeDefinition td) => td.IsPublicApi || (this.IncludeInternals && td.IsInternalApi);
 
   private IEnumerable<string?> TopLevelAttributes(AssemblyDefinition ad) {
     foreach (var line in this.CustomAttributes(ad)) {
@@ -855,6 +893,9 @@ public abstract partial class CodeFormatter {
       }
     }
   }
+
+  /// <summary>The number of spaces to be used to indent a top-level type.</summary>
+  protected virtual int TopLevelTypeIndent => 0;
 
   private IEnumerable<string?> TopLevelTypes(AssemblyDefinition ad) {
     // Gather all types, grouping them by namespace.

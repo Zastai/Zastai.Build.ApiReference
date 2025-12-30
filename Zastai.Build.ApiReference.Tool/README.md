@@ -52,6 +52,15 @@ Attributes handled as part of syntax generation (like
 `System.Runtime.CompilerServices.ExtensionAttribute`) are never
 included.
 
+#### `-eb true/false`
+
+If this is specified as `true`, then extension blocks (as introduced by
+C# 14) will also be present in the produced API reference.
+
+By default, they are not, because the implementing methods are always
+included (they are not marked so cannot be easily identified for
+omission). As such, the extension blocks only duplicate information.
+
 #### `-eh ENUM-HANDLING`
 
 Activate specific enum handling (one or more flags, comma-separated).
