@@ -57,6 +57,7 @@ public static class Program {
     var handleBinaryEnums = false;
     var handleCharEnums = false;
     var handleHexEnums = false;
+    var includeExtensionBlocks = false;
     var includeInternals = false;
     var dependencyPath = new List<string>();
     var includedAttributes = new List<string>();
@@ -66,6 +67,21 @@ public static class Program {
         case "-ea":
           excludedAttributes.Add(args[i + 1]);
           break;
+        case "-eb":{
+          var value = args[i + 1];
+          switch (value.Trim().ToLowerInvariant()) {
+            case "include":
+              includeExtensionBlocks = true;
+              break;
+            case "omit":
+              includeExtensionBlocks = false;
+              break;
+            default:
+              Console.Error.WriteLine($"Unsupported extension block setting: '{value}'; should be either 'include' or 'omit'.");
+              return 4;
+          }
+          break;
+        }
         case "-eh":
           foreach (var handling in args[i + 1].Split(',', ';')) {
             switch (handling.Trim().ToLowerInvariant()) {
@@ -120,7 +136,7 @@ public static class Program {
               includeInternals = false;
               break;
             default:
-              Console.Error.WriteLine($"Unsupported visibility ({visibility}) specified; should be either 'public' or 'internal'.");
+              Console.Error.WriteLine($"Unsupported visibility: '{visibility}'; should be either 'public' or 'internal'.");
               return 4;
           }
           break;
@@ -136,6 +152,7 @@ public static class Program {
     formatter.EnableHexEnums(handleHexEnums);
     formatter.ExcludeCustomAttributes(excludedAttributes);
     formatter.IncludeCustomAttributes(includedAttributes);
+    formatter.IncludeExtensionBlocks = includeExtensionBlocks;
     formatter.IncludeInternals = includeInternals;
     try {
       using var reference = referenceSource == "-" ? Console.Out : new StreamWriter(File.Create(referenceSource), Encoding.UTF8);

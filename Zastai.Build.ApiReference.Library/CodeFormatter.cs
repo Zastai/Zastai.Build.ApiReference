@@ -281,7 +281,7 @@ public abstract partial class CodeFormatter {
   /// <param name="indent">The number of spaces of indentation to use.</param>
   /// <returns>The formatted blocks.</returns>
   protected IEnumerable<string?> ExtensionBlocks(TypeDefinition td, int indent) {
-    if (!td.HasNestedTypes) {
+    if (!this.IncludeExtensionBlocks || !td.HasNestedTypes) {
       yield break;
     }
     var blocks = new List<TypeDefinition>();
@@ -555,7 +555,14 @@ public abstract partial class CodeFormatter {
   }
 
   /// <summary>
-  /// Indicates whether the public API should be considered to include <code>internal</code> and <code>private protected</code>
+  /// Determines whether extension blocks (as introduced by C# 14) will also be present in the produced API reference.<br/>
+  /// By default, they are not, because the implementing methods are always included (they are not marked so cannot be easily
+  /// identified for omission). As such, the extension blocks only duplicate information.
+  /// </summary>
+  public bool IncludeExtensionBlocks { get; set; }
+
+  /// <summary>
+  /// Determines whether the public API should be considered to include <code>internal</code> and <code>private protected</code>
   /// items instead of only <code>public</code> and <code>protected</code> ones.
   /// </summary>
   public bool IncludeInternals { get; set; }
