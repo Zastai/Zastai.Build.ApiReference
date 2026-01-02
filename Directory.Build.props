@@ -6,7 +6,7 @@
           Condition=" Exists($([MSBuild]::GetPathOfFileAbove('$(MSBuildThisFile)', '$(MSBuildThisFileDirectory)..'))) "/>
 
   <PropertyGroup>
-    <Copyright>Copyright © 2022, 2023, 2024, 2025 Tim Van Holder. All rights reserved.</Copyright>
+    <Copyright>Copyright © 2022, 2023, 2024, 2025, 2026 Tim Van Holder. All rights reserved.</Copyright>
     <RepositoryUrl>https://github.com/Zastai/Zastai.Build.ApiReference</RepositoryUrl>
   </PropertyGroup>
 
@@ -15,7 +15,7 @@
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>$(RepositoryUrl)/blob/main/README.md</PackageProjectUrl>
     <PackageReadMeFile>README.md</PackageReadMeFile>
-    <Version>3.1.0</Version>
+    <Version>3.1.1-pre</Version>
   </PropertyGroup>
 
   <PropertyGroup>
