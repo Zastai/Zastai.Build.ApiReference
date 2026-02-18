@@ -864,6 +864,16 @@ public abstract partial class CodeFormatter {
     if (this.IsHandledBySyntax(ca)) {
       return false;
     }
+    try {
+      var type = ca.AttributeType.Resolve();
+      if (!this.ShouldInclude(type)) {
+        return false;
+      }
+    }
+    catch {
+      // If we can't find out anything about the attribute's type, assume it's public; after all, except for InternalsVisibleTo,
+      // private and internal ones would be defined in this same assembly.
+    }
     // For everything else, use the configured inclusion/exclusion processing
     var name = ca.AttributeType.FullName;
     if (this._attributesToInclude.Count > 0) {
