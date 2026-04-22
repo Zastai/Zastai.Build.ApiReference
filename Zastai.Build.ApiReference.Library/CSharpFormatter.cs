@@ -114,7 +114,7 @@ public class CSharpFormatter : CodeFormatter {
     else if (md.IsVirtual) {
       // For some reason, static virtual methods in interfaces have IsReuseSlot set; that's currently the only situation where
       // static+virtual is valid, so we can just look at IsStatic to ignore the IsReuseSlot.
-      var isOverride = md is { IsReuseSlot: true, IsStatic: false } || (md.IsNewSlot && md.HasCovariantReturn);
+      var isOverride = md is { IsReuseSlot: true, IsStatic: false } or { IsNewSlot: true, HasCovariantReturn: true };
       sb.Append(isOverride ? "override " : "virtual ");
     }
     return sb.ToString();

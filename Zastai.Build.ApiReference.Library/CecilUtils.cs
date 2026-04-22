@@ -9,6 +9,7 @@ using Mono.Cecil;
 namespace Zastai.Build.ApiReference;
 
 /// <summary>Utility methods for working with <c>Mono.Cecil</c> elements.</summary>
+[SuppressMessage("ReSharper", "MemberCanBePrivate.Global")]
 internal static class CecilUtils {
 
   extension(AssemblyDefinition ad) {
@@ -122,7 +123,7 @@ internal static class CecilUtils {
                   arg = values[idx];
                 }
                 else {
-                  // There is a array of values but not for this index: should really be an error, but assume null-oblivious.
+                  // There is an array of values but not for this index: should really be an error, but assume null-oblivious.
                   return Nullability.Oblivious;
                 }
               }

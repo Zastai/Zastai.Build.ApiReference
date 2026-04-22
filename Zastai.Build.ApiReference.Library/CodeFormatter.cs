@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -10,6 +11,7 @@ using Mono.Cecil;
 namespace Zastai.Build.ApiReference;
 
 /// <summary>A class that will extract and format the public API for an assembly.</summary>
+[SuppressMessage("ReSharper", "MemberCanBePrivate.Global")]
 public abstract partial class CodeFormatter {
 
   private readonly HashSet<string> _attributesToExclude = [];
@@ -877,11 +879,11 @@ public abstract partial class CodeFormatter {
     // For everything else, use the configured inclusion/exclusion processing
     var name = ca.AttributeType.FullName;
     if (this._attributesToInclude.Count > 0) {
-      if (!this._attributesToInclude.Any(pattern => name.Matches(pattern))) {
+      if (!this._attributesToInclude.Any(name.Matches)) {
         return false;
       }
     }
-    return this._attributesToExclude.All(pattern => !name.Matches(pattern));
+    return !this._attributesToExclude.Any(name.Matches);
   }
 
   private bool ShouldInclude(EventDefinition ed) => ed.IsPublicApi || (this.IncludeInternals && ed.IsInternalApi);
