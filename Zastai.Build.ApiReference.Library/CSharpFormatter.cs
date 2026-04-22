@@ -652,6 +652,22 @@ public class CSharpFormatter : CodeFormatter {
     return false;
   }
 
+  /// <summary>Determines whether a given type definition is for a C# record type.</summary>
+  /// <param name="td">The type definition to check.</param>
+  /// <returns><see langword="true"/> if it's a record type; <see langword="false"/> otherwise.</returns>
+  protected bool IsRecordType(TypeDefinition td) {
+    // TODO
+    return false;
+  }
+
+  /// <summary>Determines whether a given type definition is for a C# union type.</summary>
+  /// <param name="td">The type definition to check.</param>
+  /// <returns><see langword="true"/> if it's a union type; <see langword="false"/> otherwise.</returns>
+  protected bool IsUnionType(TypeDefinition td) {
+    // TODO
+    return false;
+  }
+
   /// <inheritdoc />
   protected override string LineComment(string comment) => $"// {comment}".TrimEnd();
 
@@ -1228,139 +1244,11 @@ public class CSharpFormatter : CodeFormatter {
     yield return $"namespace {this.CurrentNamespace};";
   }
 
-  /// <inheritdoc />
-  protected override string Null() => "null";
-
-  /// <inheritdoc />
-  protected override string Or() => "|";
-
-  private string Parameter(ParameterDefinition pd) {
-    var sb = new StringBuilder();
-    sb.Append(this.CustomAttributesInline(pd));
-    if (pd.IsScopedRef) {
-      sb.Append("scoped ");
-    }
-    if (pd.IsIn) {
-      sb.Append("in ");
-    }
-    if (pd.IsOut) {
-      sb.Append("out ");
-    }
-    if (pd.IsParamArray) {
-      sb.Append("params ");
-    }
-    sb.Append(this.TypeName(pd.ParameterType, pd)).Append(' ').Append(pd.Name);
-    if (pd.HasDefault) {
-      sb.Append(" = ");
-      // FIXME: How to tell the difference between `default` and `new()`?
-      if (!pd.HasConstant) {
-        sb.Append("/* constant value missing */");
-      }
-      else if (pd.Constant is null && pd.ParameterType.IsValueType) {
-        sb.Append("default");
-      }
-      else {
-        sb.Append(this.Value(pd.ParameterType, pd.Constant));
-      }
-    }
-    return sb.ToString();
-  }
-
-  private string Parameters(MethodDefinition md) {
-    var sb = new StringBuilder();
-    sb.Append('(');
-    if (md.HasParameters) {
-      // Detect extension methods
-      if (md.IsMarkedAsExtension) {
-        sb.Append("this ");
-      }
-      sb.AppendJoin(", ", md.Parameters.Select(this.Parameter));
-    }
-    sb.Append(')');
-    return sb.ToString();
-  }
-
-  private string Parameters(PropertyDefinition pd) {
-    if (!pd.HasParameters) {
-      return "";
-    }
-    var sb = new StringBuilder();
-    // Assumption: only indexers have parameters, and they use []
-    sb.Append('[').AppendJoin(", ", pd.Parameters.Select(this.Parameter)).Append(']');
-    return sb.ToString();
-  }
-
-  /// <inheritdoc />
-  protected override IEnumerable<string?> Property(PropertyDefinition pd, int indent) {
-    foreach (var line in this.CustomAttributes(pd, indent)) {
-      yield return line;
-    }
-    {
-      var sb = new StringBuilder();
-      sb.Append(' ', indent);
-      if (pd.IsRequired) {
-        sb.Append("required ");
-      }
-      sb.Append(this.TypeName(pd.PropertyType, pd)).Append(' ');
-      sb.Append(this.PropertyName(pd));
-      sb.Append(this.Parameters(pd)).Append(" {");
-      yield return sb.ToString();
-    }
-    foreach (var line in this.PropertyAccessor(pd.GetMethod.IfPublicApi(), indent + 2)) {
-      yield return line;
-    }
-    foreach (var line in this.PropertyAccessor(pd.SetMethod.IfPublicApi(), indent + 2)) {
-      yield return line;
-    }
-    if (pd.HasOtherMethods) {
-      var sb = new StringBuilder();
-      sb.Append(' ', indent + 2).Append("// unsupported: \"other methods\"");
-      yield return sb.ToString();
-    }
-    {
-      var sb = new StringBuilder();
-      sb.Append(' ', indent).Append('}');
-      yield return sb.ToString();
-    }
-  }
-
-  private IEnumerable<string?> PropertyAccessor(MethodDefinition? method, int indent) {
-    if (method is null) {
-      yield break;
-    }
-    foreach (var line in this.CustomAttributes(method, indent)) {
-      yield return line;
-    }
-    var sb = new StringBuilder();
-    sb.Append(' ', indent).Append(this.Attributes(method));
-    if (method.IsReadOnly) {
-      sb.Append("readonly ");
-    }
-    if (method.IsGetter) {
-      sb.Append("get");
-    }
-    else if (method.IsSetter) {
-      // For `init`, it's not an attribute on the setter method, but rather a "required modifier" on its return type (void).
-      // A bit weird, but whatever.
-      if (method.ReturnType.IsModifiedType(method.Module.TypeSystem.Void, "System.Runtime.CompilerServices", "IsExternalInit")) {
-        sb.Append("init");
-      }
-      else {
-        sb.Append("set");
-      }
-    }
-    sb.Append(';');
-    yield return sb.ToString();
-  }
-
-  /// <inheritdoc />
-  protected override string PropertyName(PropertyDefinition pd) {
-    // FIXME: Or should this only be done when the type has [System.Reflection.DefaultMemberAttribute("Item")]?
-    return pd is { HasParameters: true, Name: "Item" } ? "this" : pd.Name;
-  }
-
-  /// <inheritdoc />
-  protected override IEnumerable<string?> Type(TypeDefinition td, int indent) {
+  /// <summary>Formats a "normal" C# type (i.e. not a record or union type).</summary>
+  /// <param name="td">The type definition.</param>
+  /// <param name="indent">The number of spaces of indentation to use.</param>
+  /// <returns>The formatted type.</returns>
+  protected IEnumerable<string?> NormalType(TypeDefinition td, int indent) {
     foreach (var line in this.CustomAttributes(td, indent)) {
       yield return line;
     }
@@ -1527,6 +1415,157 @@ public class CSharpFormatter : CodeFormatter {
     yield return null;
     sb.Append(' ', indent).Append('}');
     yield return sb.ToString();
+  }
+
+  /// <inheritdoc />
+  protected override string Null() => "null";
+
+  /// <inheritdoc />
+  protected override string Or() => "|";
+
+  private string Parameter(ParameterDefinition pd) {
+    var sb = new StringBuilder();
+    sb.Append(this.CustomAttributesInline(pd));
+    if (pd.IsScopedRef) {
+      sb.Append("scoped ");
+    }
+    if (pd.IsIn) {
+      sb.Append("in ");
+    }
+    if (pd.IsOut) {
+      sb.Append("out ");
+    }
+    if (pd.IsParamArray) {
+      sb.Append("params ");
+    }
+    sb.Append(this.TypeName(pd.ParameterType, pd)).Append(' ').Append(pd.Name);
+    if (pd.HasDefault) {
+      sb.Append(" = ");
+      // FIXME: How to tell the difference between `default` and `new()`?
+      if (!pd.HasConstant) {
+        sb.Append("/* constant value missing */");
+      }
+      else if (pd.Constant is null && pd.ParameterType.IsValueType) {
+        sb.Append("default");
+      }
+      else {
+        sb.Append(this.Value(pd.ParameterType, pd.Constant));
+      }
+    }
+    return sb.ToString();
+  }
+
+  private string Parameters(MethodDefinition md) {
+    var sb = new StringBuilder();
+    sb.Append('(');
+    if (md.HasParameters) {
+      // Detect extension methods
+      if (md.IsMarkedAsExtension) {
+        sb.Append("this ");
+      }
+      sb.AppendJoin(", ", md.Parameters.Select(this.Parameter));
+    }
+    sb.Append(')');
+    return sb.ToString();
+  }
+
+  private string Parameters(PropertyDefinition pd) {
+    if (!pd.HasParameters) {
+      return "";
+    }
+    var sb = new StringBuilder();
+    // Assumption: only indexers have parameters, and they use []
+    sb.Append('[').AppendJoin(", ", pd.Parameters.Select(this.Parameter)).Append(']');
+    return sb.ToString();
+  }
+
+  /// <inheritdoc />
+  protected override IEnumerable<string?> Property(PropertyDefinition pd, int indent) {
+    foreach (var line in this.CustomAttributes(pd, indent)) {
+      yield return line;
+    }
+    {
+      var sb = new StringBuilder();
+      sb.Append(' ', indent);
+      if (pd.IsRequired) {
+        sb.Append("required ");
+      }
+      sb.Append(this.TypeName(pd.PropertyType, pd)).Append(' ');
+      sb.Append(this.PropertyName(pd));
+      sb.Append(this.Parameters(pd)).Append(" {");
+      yield return sb.ToString();
+    }
+    foreach (var line in this.PropertyAccessor(pd.GetMethod.IfPublicApi(), indent + 2)) {
+      yield return line;
+    }
+    foreach (var line in this.PropertyAccessor(pd.SetMethod.IfPublicApi(), indent + 2)) {
+      yield return line;
+    }
+    if (pd.HasOtherMethods) {
+      var sb = new StringBuilder();
+      sb.Append(' ', indent + 2).Append("// unsupported: \"other methods\"");
+      yield return sb.ToString();
+    }
+    {
+      var sb = new StringBuilder();
+      sb.Append(' ', indent).Append('}');
+      yield return sb.ToString();
+    }
+  }
+
+  private IEnumerable<string?> PropertyAccessor(MethodDefinition? method, int indent) {
+    if (method is null) {
+      yield break;
+    }
+    foreach (var line in this.CustomAttributes(method, indent)) {
+      yield return line;
+    }
+    var sb = new StringBuilder();
+    sb.Append(' ', indent).Append(this.Attributes(method));
+    if (method.IsReadOnly) {
+      sb.Append("readonly ");
+    }
+    if (method.IsGetter) {
+      sb.Append("get");
+    }
+    else if (method.IsSetter) {
+      // For `init`, it's not an attribute on the setter method, but rather a "required modifier" on its return type (void).
+      // A bit weird, but whatever.
+      if (method.ReturnType.IsModifiedType(method.Module.TypeSystem.Void, "System.Runtime.CompilerServices", "IsExternalInit")) {
+        sb.Append("init");
+      }
+      else {
+        sb.Append("set");
+      }
+    }
+    sb.Append(';');
+    yield return sb.ToString();
+  }
+
+  /// <inheritdoc />
+  protected override string PropertyName(PropertyDefinition pd) {
+    // FIXME: Or should this only be done when the type has [System.Reflection.DefaultMemberAttribute("Item")]?
+    return pd is { HasParameters: true, Name: "Item" } ? "this" : pd.Name;
+  }
+
+  /// <summary>Formats a C# record type.</summary>
+  /// <param name="td">The record type definition.</param>
+  /// <param name="indent">The number of spaces of indentation to use.</param>
+  /// <returns>The formatted record type.</returns>
+  protected IEnumerable<string?> RecordType(TypeDefinition td, int indent) {
+    // TODO
+    yield break;
+  }
+
+  /// <inheritdoc />
+  protected override IEnumerable<string?> Type(TypeDefinition td, int indent) {
+    if (this.IsRecordType(td)) {
+      return this.RecordType(td, indent);
+    }
+    if (this.IsUnionType(td)) {
+      return this.UnionType(td, indent);
+    }
+    return this.NormalType(td, indent);
   }
 
   /// <summary>Formats the type name for an exported type.</summary>
@@ -1872,6 +1911,15 @@ public class CSharpFormatter : CodeFormatter {
   protected override string TypeOf(TypeReference tr) {
     // FIXME: Does this need a context?
     return $"typeof({this.TypeName(tr)})";
+  }
+
+  /// <summary>Formats a C# union type.</summary>
+  /// <param name="td">The union type definition.</param>
+  /// <param name="indent">The number of spaces of indentation to use.</param>
+  /// <returns>The formatted union type.</returns>
+  protected IEnumerable<string?> UnionType(TypeDefinition td, int indent) {
+    // TODO
+    yield break;
   }
 
 }
