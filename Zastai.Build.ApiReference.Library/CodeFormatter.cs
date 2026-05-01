@@ -478,15 +478,21 @@ public abstract partial class CodeFormatter {
     this._runtimeFeatures = null;
   }
 
+  private const string FormatUsingAssemblyDefinitionOnly =
+    $"Use the version taking an {nameof(AssemblyDefinition)}; otherwise, that gets disposed before all processing is complete, " +
+    $"which can cause problems.";
+
   /// <summary>Formats the public API for an assembly.</summary>
   /// <param name="assembly">A stream containing the assembly to process.</param>
   /// <returns>The formatted public API for the assembly, line by line.</returns>
+  [Obsolete(CodeFormatter.FormatUsingAssemblyDefinitionOnly)]
   public IEnumerable<string?> FormatPublicApi(Stream assembly) => this.FormatPublicApi(assembly, new ReaderParameters());
 
   /// <summary>Formats the public API for an assembly.</summary>
   /// <param name="assembly">A stream containing the assembly to process.</param>
   /// <param name="parameters">The parameters to apply when reading the assembly.</param>
   /// <returns>The formatted public API for the assembly, line by line.</returns>
+  [Obsolete(CodeFormatter.FormatUsingAssemblyDefinitionOnly)]
   public IEnumerable<string?> FormatPublicApi(Stream assembly, ReaderParameters parameters) {
     using var ad = AssemblyDefinition.ReadAssembly(assembly, parameters);
     return this.FormatPublicApi(ad);
@@ -495,12 +501,14 @@ public abstract partial class CodeFormatter {
   /// <summary>Formats the public API for an assembly.</summary>
   /// <param name="assemblyPath">The path to the assembly to process.</param>
   /// <returns>The formatted public API for the assembly, line by line.</returns>
+  [Obsolete(CodeFormatter.FormatUsingAssemblyDefinitionOnly)]
   public IEnumerable<string?> FormatPublicApi(string assemblyPath) => this.FormatPublicApi(assemblyPath, new ReaderParameters());
 
   /// <summary>Formats the public API for an assembly.</summary>
   /// <param name="assemblyPath">The path to the assembly to process.</param>
   /// <param name="parameters">The parameters to apply when reading the assembly.</param>
   /// <returns>The formatted public API for the assembly, line by line.</returns>
+  [Obsolete(CodeFormatter.FormatUsingAssemblyDefinitionOnly)]
   public IEnumerable<string?> FormatPublicApi(string assemblyPath, ReaderParameters parameters) {
     using var ad = AssemblyDefinition.ReadAssembly(assemblyPath, parameters);
     return this.FormatPublicApi(ad);

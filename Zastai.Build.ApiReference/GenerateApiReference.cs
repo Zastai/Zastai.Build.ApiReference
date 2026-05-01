@@ -153,8 +153,9 @@ public sealed class GenerateApiReference : ITask {
     formatter.IncludeExtensionBlocks = this.IncludeExtensionBlocks;
     formatter.IncludeInternals = includeInternals;
     try {
+      using var ad = AssemblyDefinition.ReadAssembly(assembly, this.CreateReaderParameters(assembly, libraryPath));
       using var reference = new StreamWriter(File.Create(referenceSource), Encoding.UTF8);
-      foreach (var line in formatter.FormatPublicApi(assembly, this.CreateReaderParameters(assembly, libraryPath))) {
+      foreach (var line in formatter.FormatPublicApi(ad)) {
         reference.WriteLine(line);
       }
     }
