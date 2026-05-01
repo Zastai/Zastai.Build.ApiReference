@@ -1554,8 +1554,8 @@ public class CSharpFormatter : CodeFormatter {
     var prefix = "";
     // ref X can only occur on outer types; can't have an array of `ref int` or a `Func<ref int>`, so handle that here
     if (tr is ByReferenceType brt) { // => ref T
-      // omit the "ref" for "out" parameters - it's covered by the "out"
-      if (context is not ParameterDefinition { IsOut: true }) {
+      // omit the "ref" for "in" or "out" parameters
+      if (context is ParameterDefinition { IsIn: false, IsOut: false }) {
         prefix = context.IsReadOnly ? "ref readonly " : "ref ";
       }
       tr = brt.ElementType;
