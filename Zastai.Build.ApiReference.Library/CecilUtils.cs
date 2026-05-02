@@ -337,8 +337,6 @@ internal static class CecilUtils {
 
   extension(TypeReference tr) {
 
-    public bool IsCompilerGenerated => ((ICustomAttributeProvider) tr.Resolve()).IsCompilerGenerated;
-
     public bool IsCoreLibraryType() => tr.Scope == tr.Module.TypeSystem.CoreLibrary;
 
     public bool IsCoreLibraryType(string? ns) => tr.IsCoreLibraryType() && tr.IsNamed(ns);
