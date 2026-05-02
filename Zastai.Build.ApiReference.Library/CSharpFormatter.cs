@@ -656,8 +656,136 @@ public class CSharpFormatter : CodeFormatter {
   /// <param name="td">The type definition to check.</param>
   /// <returns><see langword="true"/> if it's a record type; <see langword="false"/> otherwise.</returns>
   protected bool IsRecordType(TypeDefinition td) {
-    // TODO
-    return false;
+    // Can't be an interface or an enum; can't be a static class.
+    if (td.IsInterface || td.IsEnum || td is { IsSealed: true, IsAbstract: true }) {
+      return false;
+    }
+    // Must have implemented interfaces and methods. Properties and fields are not technically required.
+    if (!td.HasInterfaces || !td.HasMethods) {
+      return false;
+    }
+    { // Must implement IEquatable<itself>.
+      var found = false;
+      foreach (var implemented in td.Interfaces.Select(ii => ii.InterfaceType).OfType<GenericInstanceType>()) {
+        if (!implemented.ElementType.IsCoreLibraryType("System", "IEquatable`1")) {
+          continue;
+        }
+        if (implemented.HasGenericArguments && implemented.GenericArguments.Count == 1 && implemented.GenericArguments[0] == td) {
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        return false;
+      }
+    }
+    var ts = td.Module.TypeSystem;
+    { // Check for compiler-generated == and != operators.
+      var eq = false;
+      var neq = false;
+      var ops = td.Methods.Where(md => md is {
+        IsCompilerGenerated: true,
+        IsSpecialName: true,
+        IsStatic: true,
+        Name: "op_Equality" or "op_Inequality",
+        HasParameters: true,
+        Parameters.Count: 2,
+      });
+      foreach (var op in ops) {
+        if (op.ReturnType != ts.Boolean) {
+          continue;
+        }
+        if (op.Parameters[0].ParameterType != td || op.Parameters[1].ParameterType != td) {
+          continue;
+        }
+        if (op.Name is "op_Equality") {
+          eq = true;
+        }
+        else {
+          neq = true;
+        }
+      }
+      if (!eq || !neq) {
+        return false;
+      }
+    }
+    // If not a struct, it must have a compiler-generated method called `<Clone>$` taking no parameters and returning this type.
+    if (!td.IsValueType) {
+      var clone = td.Methods.FirstOrDefault(md => md is {
+        HasParameters: false,
+        IsCompilerGenerated: true,
+        Name: "<Clone>$",
+      });
+      if (clone?.ReturnType != td) {
+        return false;
+      }
+    }
+    // Several methods should be present:
+    // - "<itself> <Clone>$()" (except for structs; should always be compiler-generated)
+    // - `int GetHashCode()`
+    // - `bool Equals(object)`
+    // - `bool Equals(<itself>)`
+    // - "bool PrintMembers(StringBuilder)"
+    // - `string ToString()`
+    {
+      var clone = td.IsValueType;
+      var hashCode = false;
+      var equals = false;
+      var equalsSelf = false;
+      var printMembers = false;
+      var toString = false;
+      foreach (var method in td.Methods) {
+        if (!clone && method is { HasParameters: false, IsCompilerGenerated: true, Name: "<Clone>$" }) {
+          if (method.ReturnType == td) {
+            clone = true;
+            continue;
+          }
+        }
+        if (!(equals && equalsSelf) && method is { HasParameters: true, Name: "Equals" }) {
+          if (method.ReturnType == ts.Boolean && method.Parameters.Count == 1) {
+            var pt = method.Parameters[0].ParameterType;
+            if (pt == td) {
+              equalsSelf = true;
+              continue;
+            }
+            if (pt == ts.Object) {
+              equals = true;
+              continue;
+            }
+          }
+        }
+        if (!hashCode && method is { HasParameters: false, Name: "GetHashCode" }) {
+          if (method.ReturnType == ts.Int32) {
+            hashCode = true;
+            continue;
+          }
+        }
+        if (!printMembers && method is { HasParameters: true, Name: "PrintMembers"}) {
+          if (method.ReturnType == ts.Boolean && method.Parameters.Count == 1) {
+            if (method.Parameters[0].ParameterType.IsCoreLibraryType("System.Text", "StringBuilder")) {
+              printMembers = true;
+              continue;
+            }
+          }
+        }
+        if (!toString && method is { HasParameters: false, Name: "ToString" }) {
+          if (method.ReturnType == ts.String) {
+            toString = true;
+            continue;
+          }
+        }
+      }
+      if (!clone || !hashCode || !equals || !equalsSelf || !printMembers || !toString) {
+        return false;
+      }
+    }
+    // Optional additional checks:
+    // - when it's a non-sealed record class, there should be a "copy constructor" (taking a single parameter of the record's type)
+    // - there can be a property named EqualityContract, of type System.Type, with only a getter
+    //   - it's not always present, so the correct logic to determine when it should be present needs to be determined first
+    // - there should be a "void Deconstruct()" method with all `out` parameters, but only when the record has properties (not
+    //   counting `EqualityContract`)
+    return true;
   }
 
   /// <summary>Determines whether a given type definition is for a C# union type.</summary>
@@ -1311,7 +1439,14 @@ public class CSharpFormatter : CodeFormatter {
     else if (td is { IsSealed: true, IsValueType: false }) {
       sb.Append("sealed ");
     }
-    if (td.IsEnum) {
+    var recordType = this.IsRecordType(td);
+    if (recordType) {
+      sb.Append("record");
+      if (td.IsValueType) {
+        sb.Append(" struct");
+      }
+    }
+    else if (td.IsEnum) {
       sb.Append("enum");
     }
     else if (td.IsInterface) {
@@ -1360,24 +1495,27 @@ public class CSharpFormatter : CodeFormatter {
           }
         }
       }
-      if (baseType is not null || td.HasInterfaces) {
-        sb.Append(" : ");
-      }
       if (baseType is not null) {
         // FIXME: Does this need a context?
-        sb.Append(this.TypeName(baseType, td));
-        if (td.HasInterfaces) {
-          sb.Append(", ");
-        }
+        sb.Append(" : ").Append(this.TypeName(baseType, td));
       }
       if (td.HasInterfaces) {
         // Ensure these are emitted sorted
         var interfaces = new SortedDictionary<string, string>();
         foreach (var implementation in td.Interfaces) {
-          var type = this.TypeName(implementation.InterfaceType, implementation, typeContext: td);
+          var it = implementation.InterfaceType;
+          // Don't emit IEquatable<this type> for records.
+          if (recordType && it.IsCoreLibraryType("System", "IEquatable`1") && it is GenericInstanceType git) {
+            if (git.HasGenericArguments && git.GenericArguments.Count == 1 && git.GenericArguments[0] == td) {
+              continue;
+            }
+          }
+          var type = this.TypeName(it, implementation, typeContext: td);
           interfaces.Add(type, this.CustomAttributesInline(implementation) + type);
         }
-        sb.AppendJoin(", ", interfaces.Values);
+        if (interfaces.Count > 0) {
+          sb.Append(baseType is null ? " : " : ", ").AppendJoin(", ", interfaces.Values);
+        }
       }
     }
     {
@@ -1548,20 +1686,8 @@ public class CSharpFormatter : CodeFormatter {
     return pd is { HasParameters: true, Name: "Item" } ? "this" : pd.Name;
   }
 
-  /// <summary>Formats a C# record type.</summary>
-  /// <param name="td">The record type definition.</param>
-  /// <param name="indent">The number of spaces of indentation to use.</param>
-  /// <returns>The formatted record type.</returns>
-  protected IEnumerable<string?> RecordType(TypeDefinition td, int indent) {
-    // TODO
-    yield break;
-  }
-
   /// <inheritdoc />
   protected override IEnumerable<string?> Type(TypeDefinition td, int indent) {
-    if (this.IsRecordType(td)) {
-      return this.RecordType(td, indent);
-    }
     if (this.IsUnionType(td)) {
       return this.UnionType(td, indent);
     }
@@ -1918,8 +2044,10 @@ public class CSharpFormatter : CodeFormatter {
   /// <param name="indent">The number of spaces of indentation to use.</param>
   /// <returns>The formatted union type.</returns>
   protected IEnumerable<string?> UnionType(TypeDefinition td, int indent) {
-    // TODO
-    yield break;
+    yield return $"// TODO: Handle union type: {td}";
+    foreach (var line in this.NormalType(td, indent)) {
+      yield return line;
+    }
   }
 
 }
