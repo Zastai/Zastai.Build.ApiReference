@@ -328,7 +328,7 @@ internal static class CecilUtils {
 
     public bool IsExtensionBlock => td is { IsSpecialName: true, IsMarkedAsExtension: true } && td.Name.StartsWith("<G>");
 
-    public bool IsInternalApi => td is not null && (td.IsNestedAssembly || td.IsNestedFamilyAndAssembly || td.IsNotPublic);
+    public bool IsInternalApi => td is not null && (td.IsNestedAssembly || td.IsNestedFamilyAndAssembly);
 
     public bool IsPublicApi
       => td is not null && (td.IsPublic || td.IsNestedPublic || td.IsNestedFamily || td.IsNestedFamilyOrAssembly);
