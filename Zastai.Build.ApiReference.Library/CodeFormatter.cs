@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -10,6 +11,7 @@ using Mono.Cecil;
 namespace Zastai.Build.ApiReference;
 
 /// <summary>A class that will extract and format the public API for an assembly.</summary>
+[SuppressMessage("ReSharper", "MemberCanBePrivate.Global")]
 public abstract partial class CodeFormatter {
 
   private readonly HashSet<string> _attributesToExclude = [];
@@ -207,7 +209,7 @@ public abstract partial class CodeFormatter {
     }
     var events = new SortedDictionary<string, EventDefinition>();
     foreach (var ed in td.Events) {
-      if (!this.ShouldInclude(ed)) {
+      if (!this.ShouldInclude(ed) || ed.IsCompilerGenerated) {
         continue;
       }
       // Assumption: no overloads for these
@@ -317,7 +319,7 @@ public abstract partial class CodeFormatter {
     }
     var fields = new SortedDictionary<string, FieldDefinition>();
     foreach (var field in td.Fields) {
-      if (!this.ShouldInclude(field)) {
+      if (!this.ShouldInclude(field) || field.IsCompilerGenerated) {
         continue;
       }
       if (fields.TryGetValue(field.Name, out var previousField)) {
@@ -476,15 +478,21 @@ public abstract partial class CodeFormatter {
     this._runtimeFeatures = null;
   }
 
+  private const string FormatUsingAssemblyDefinitionOnly =
+    $"Use the version taking an {nameof(AssemblyDefinition)}; otherwise, that gets disposed before all processing is complete, " +
+    $"which can cause problems.";
+
   /// <summary>Formats the public API for an assembly.</summary>
   /// <param name="assembly">A stream containing the assembly to process.</param>
   /// <returns>The formatted public API for the assembly, line by line.</returns>
+  [Obsolete(CodeFormatter.FormatUsingAssemblyDefinitionOnly)]
   public IEnumerable<string?> FormatPublicApi(Stream assembly) => this.FormatPublicApi(assembly, new ReaderParameters());
 
   /// <summary>Formats the public API for an assembly.</summary>
   /// <param name="assembly">A stream containing the assembly to process.</param>
   /// <param name="parameters">The parameters to apply when reading the assembly.</param>
   /// <returns>The formatted public API for the assembly, line by line.</returns>
+  [Obsolete(CodeFormatter.FormatUsingAssemblyDefinitionOnly)]
   public IEnumerable<string?> FormatPublicApi(Stream assembly, ReaderParameters parameters) {
     using var ad = AssemblyDefinition.ReadAssembly(assembly, parameters);
     return this.FormatPublicApi(ad);
@@ -493,12 +501,14 @@ public abstract partial class CodeFormatter {
   /// <summary>Formats the public API for an assembly.</summary>
   /// <param name="assemblyPath">The path to the assembly to process.</param>
   /// <returns>The formatted public API for the assembly, line by line.</returns>
+  [Obsolete(CodeFormatter.FormatUsingAssemblyDefinitionOnly)]
   public IEnumerable<string?> FormatPublicApi(string assemblyPath) => this.FormatPublicApi(assemblyPath, new ReaderParameters());
 
   /// <summary>Formats the public API for an assembly.</summary>
   /// <param name="assemblyPath">The path to the assembly to process.</param>
   /// <param name="parameters">The parameters to apply when reading the assembly.</param>
   /// <returns>The formatted public API for the assembly, line by line.</returns>
+  [Obsolete(CodeFormatter.FormatUsingAssemblyDefinitionOnly)]
   public IEnumerable<string?> FormatPublicApi(string assemblyPath, ReaderParameters parameters) {
     using var ad = AssemblyDefinition.ReadAssembly(assemblyPath, parameters);
     return this.FormatPublicApi(ad);
@@ -678,6 +688,9 @@ public abstract partial class CodeFormatter {
       if (!this.ShouldInclude(method) || method.IsAddOn || method.IsGetter || method.IsRemoveOn || method.IsSetter) {
         continue;
       }
+      if (method.IsCompilerGenerated) {
+        continue;
+      }
       if (methods.Add(method)) {
         continue;
       }
@@ -761,10 +774,7 @@ public abstract partial class CodeFormatter {
     }
     var nestedTypes = new SortedDictionary<string, TypeDefinition>();
     foreach (var type in td.NestedTypes) {
-      if (!this.ShouldInclude(type)) {
-        continue;
-      }
-      if (type.IsExtensionBlock) {
+      if (!this.ShouldInclude(type) || type.IsCompilerGenerated || type.IsExtensionBlock) {
         continue;
       }
       if (nestedTypes.TryGetValue(type.Name, out var previousType)) {
@@ -805,6 +815,9 @@ public abstract partial class CodeFormatter {
     var properties = new SortedSet<PropertyDefinition>(this);
     foreach (var property in td.Properties) {
       if (!this.ShouldInclude(property.GetMethod) && !this.ShouldInclude(property.SetMethod)) {
+        continue;
+      }
+      if (property.IsCompilerGenerated) {
         continue;
       }
       if (property.HasParameters) {
@@ -877,11 +890,11 @@ public abstract partial class CodeFormatter {
     // For everything else, use the configured inclusion/exclusion processing
     var name = ca.AttributeType.FullName;
     if (this._attributesToInclude.Count > 0) {
-      if (!this._attributesToInclude.Any(pattern => name.Matches(pattern))) {
+      if (!this._attributesToInclude.Any(name.Matches)) {
         return false;
       }
     }
-    return this._attributesToExclude.All(pattern => !name.Matches(pattern));
+    return !this._attributesToExclude.Any(name.Matches);
   }
 
   private bool ShouldInclude(EventDefinition ed) => ed.IsPublicApi || (this.IncludeInternals && ed.IsInternalApi);
@@ -913,7 +926,7 @@ public abstract partial class CodeFormatter {
     foreach (var md in ad.Modules) {
       if (md.HasTypes) {
         foreach (var td in md.Types) {
-          if (!this.ShouldInclude(td)) {
+          if (!this.ShouldInclude(td) || td.IsCompilerGenerated) {
             continue;
           }
           if (!namespacedTypes.TryGetValue(td.Namespace, out var types)) {

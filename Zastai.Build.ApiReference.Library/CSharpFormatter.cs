@@ -114,7 +114,7 @@ public class CSharpFormatter : CodeFormatter {
     else if (md.IsVirtual) {
       // For some reason, static virtual methods in interfaces have IsReuseSlot set; that's currently the only situation where
       // static+virtual is valid, so we can just look at IsStatic to ignore the IsReuseSlot.
-      var isOverride = md is { IsReuseSlot: true, IsStatic: false } || (md.IsNewSlot && md.HasCovariantReturn);
+      var isOverride = md is { IsReuseSlot: true, IsStatic: false } or { IsNewSlot: true, HasCovariantReturn: true };
       sb.Append(isOverride ? "override " : "virtual ");
     }
     return sb.ToString();
@@ -650,6 +650,178 @@ public class CSharpFormatter : CodeFormatter {
         break;
     }
     return false;
+  }
+
+  /// <summary>Determines whether a given type definition is for a C# record type.</summary>
+  /// <param name="td">The type definition to check.</param>
+  /// <returns><see langword="true"/> if it's a record type; <see langword="false"/> otherwise.</returns>
+  protected static bool IsRecordType(TypeDefinition td) {
+    // Can't be an interface or an enum; can't be a static class.
+    if (td.IsInterface || td.IsEnum || td is { IsSealed: true, IsAbstract: true }) {
+      return false;
+    }
+    // Must implement IEquatable<itself>.
+    if (!td.Implements("System", "IEquatable`1", td)) {
+      return false;
+    }
+    var ts = td.Module.TypeSystem;
+    { // Check for compiler-generated == and != operators.
+      var eq = false;
+      var neq = false;
+      if (td.HasMethods) {
+        var ops = td.Methods.Where(md => md is {
+          IsCompilerGenerated: true,
+          IsSpecialName: true,
+          IsStatic: true,
+          Name: "op_Equality" or "op_Inequality",
+          HasParameters: true,
+          Parameters.Count: 2,
+        });
+        foreach (var op in ops) {
+          if (op.ReturnType != ts.Boolean) {
+            continue;
+          }
+          if (op.Parameters[0].ParameterType != td || op.Parameters[1].ParameterType != td) {
+            continue;
+          }
+          if (op.Name is "op_Equality") {
+            eq = true;
+          }
+          else {
+            neq = true;
+          }
+        }
+      }
+      if (!eq || !neq) {
+        return false;
+      }
+    }
+    // If not a struct, it must have a compiler-generated method called `<Clone>$` taking no parameters and returning this type.
+    if (!td.IsValueType) {
+      var clone = td.Methods.FirstOrDefault(md => md is {
+        HasParameters: false,
+        IsCompilerGenerated: true,
+        Name: "<Clone>$",
+      });
+      if (clone?.ReturnType != td) {
+        return false;
+      }
+    }
+    // Several methods should be present:
+    // - "<itself> <Clone>$()" (except for structs; should always be compiler-generated)
+    // - `int GetHashCode()`
+    // - `bool Equals(object)`
+    // - `bool Equals(<itself>)`
+    // - "bool PrintMembers(StringBuilder)"
+    // - `string ToString()`
+    {
+      var clone = td.IsValueType;
+      var hashCode = false;
+      var equals = false;
+      var equalsSelf = false;
+      var printMembers = false;
+      var toString = false;
+      foreach (var method in td.Methods) {
+        if (!clone && method is { HasParameters: false, IsCompilerGenerated: true, Name: "<Clone>$" }) {
+          if (method.ReturnType == td) {
+            clone = true;
+            continue;
+          }
+        }
+        if (!(equals && equalsSelf) && method is { HasParameters: true, Name: "Equals" }) {
+          if (method.ReturnType == ts.Boolean && method.Parameters.Count == 1) {
+            var pt = method.Parameters[0].ParameterType;
+            if (pt == td) {
+              equalsSelf = true;
+              continue;
+            }
+            if (pt == ts.Object) {
+              equals = true;
+              continue;
+            }
+          }
+        }
+        if (!hashCode && method is { HasParameters: false, Name: "GetHashCode" }) {
+          if (method.ReturnType == ts.Int32) {
+            hashCode = true;
+            continue;
+          }
+        }
+        if (!printMembers && method is { HasParameters: true, Name: "PrintMembers"}) {
+          if (method.ReturnType == ts.Boolean && method.Parameters.Count == 1) {
+            if (method.Parameters[0].ParameterType.IsCoreLibraryType("System.Text", "StringBuilder")) {
+              printMembers = true;
+              continue;
+            }
+          }
+        }
+        if (!toString && method is { HasParameters: false, Name: "ToString" }) {
+          if (method.ReturnType == ts.String) {
+            toString = true;
+            continue;
+          }
+        }
+      }
+      if (!clone || !hashCode || !equals || !equalsSelf || !printMembers || !toString) {
+        return false;
+      }
+    }
+    // Optional additional checks:
+    // - when it's a non-sealed record class, there should be a "copy constructor" (taking a single parameter of the record's type)
+    // - there can be a property named EqualityContract, of type System.Type, with only a getter
+    //   - it's not always present, so the correct logic to determine when it should be present needs to be determined first
+    // - there should be a "void Deconstruct()" method with all `out` parameters, but only when the record has properties (not
+    //   counting `EqualityContract`)
+    return true;
+  }
+
+  /// <summary>Determines whether a given type definition is for a C# union type.</summary>
+  /// <param name="td">The type definition to check.</param>
+  /// <returns><see langword="true"/> if it's a union type; <see langword="false"/> otherwise.</returns>
+  protected static bool IsUnionType(TypeDefinition td) {
+    // Automatic unions seem to always be structs. [Union] is required.
+    if (!td.IsValueType || !td.BaseType.IsCoreLibraryType("System", "ValueType") || !td.IsMarkedAsUnion) {
+      return false;
+    }
+    // They must implement IUnion.
+    if (!td.HasInterfaces || !td.Implements("System.Runtime.CompilerServices", "IUnion")) {
+      return false;
+    }
+    { // They must have a public get-only Value property of type object.
+      var found = false;
+      if (td.HasProperties) {
+        var ts = td.Module.TypeSystem;
+        foreach (var prop in td.Properties) {
+          if (prop is not { Name: "Value", GetMethod: { IsPublic: true }, SetMethod: null, HasOtherMethods: false }) {
+            continue;
+          }
+          if (prop.PropertyType == ts.Object) {
+            found = true;
+            break;
+          }
+        }
+      }
+      if (!found) {
+        return false;
+      }
+    }
+    // All single-argument constructors, of which there must be at least one, must be public and compiler-generated.
+    {
+      var validConstructors = 0;
+      if (td.HasMethods) {
+        foreach (var ctor in td.Methods.Where(md => md is { IsConstructor: true, Name: ".ctor", HasParameters: true })) {
+          if (ctor.Parameters.Count == 1) {
+            if (ctor is { IsPublic: true, IsCompilerGenerated: true }) {
+              ++validConstructors;
+            }
+            else {
+              return false;
+            }
+          }
+        }
+      }
+      return validConstructors > 0;
+    }
   }
 
   /// <inheritdoc />
@@ -1423,7 +1595,19 @@ public class CSharpFormatter : CodeFormatter {
     else if (td is { IsSealed: true, IsValueType: false }) {
       sb.Append("sealed ");
     }
-    if (td.IsEnum) {
+    var unionType = CSharpFormatter.IsUnionType(td);
+    // The record check is relatively expensive, so avoid doing it if we've already detected a union.
+    var recordType = !unionType && CSharpFormatter.IsRecordType(td);
+    if (recordType) {
+      sb.Append("record");
+      if (td.IsValueType) {
+        sb.Append(" struct");
+      }
+    }
+    else if (unionType) {
+      sb.Append("union");
+    }
+    else if (td.IsEnum) {
       sb.Append("enum");
     }
     else if (td.IsInterface) {
@@ -1447,6 +1631,16 @@ public class CSharpFormatter : CodeFormatter {
     }
     // Note: The definition is NOT passed as context here (otherwise [NullableContext(2)] causes "public class Foo?").
     sb.Append(' ').Append(this.TypeName(td));
+    if (unionType) {
+      var types = new List<string>();
+      foreach (var ctor in td.Methods.Where(md => md is { IsConstructor: true, Name: ".ctor", HasParameters: true })) {
+        if (ctor.Parameters.Count == 1) {
+          var param = ctor.Parameters[0];
+          types.Add(this.TypeName(param.ParameterType, param));
+        }
+      }
+      sb.Append('(').AppendJoin(", ", types).Append(')');
+    }
     {
       var baseType = td.BaseType;
       if (baseType is not null) {
@@ -1472,24 +1666,31 @@ public class CSharpFormatter : CodeFormatter {
           }
         }
       }
-      if (baseType is not null || td.HasInterfaces) {
-        sb.Append(" : ");
-      }
       if (baseType is not null) {
         // FIXME: Does this need a context?
-        sb.Append(this.TypeName(baseType, td));
-        if (td.HasInterfaces) {
-          sb.Append(", ");
-        }
+        sb.Append(" : ").Append(this.TypeName(baseType, td));
       }
       if (td.HasInterfaces) {
         // Ensure these are emitted sorted
         var interfaces = new SortedDictionary<string, string>();
         foreach (var implementation in td.Interfaces) {
-          var type = this.TypeName(implementation.InterfaceType, implementation, typeContext: td);
+          var it = implementation.InterfaceType;
+          // Don't emit IEquatable<this type> for records.
+          if (recordType && it.IsCoreLibraryType("System", "IEquatable`1") && it is GenericInstanceType git) {
+            if (git.HasGenericArguments && git.GenericArguments.Count == 1 && git.GenericArguments[0] == td) {
+              continue;
+            }
+          }
+          // Don't emit IUnion for unions.
+          if (unionType && it.IsNamed("System.Runtime.CompilerServices", "IUnion") && !it.HasGenericParameters) {
+            continue;
+          }
+          var type = this.TypeName(it, implementation, typeContext: td);
           interfaces.Add(type, this.CustomAttributesInline(implementation) + type);
         }
-        sb.AppendJoin(", ", interfaces.Values);
+        if (interfaces.Count > 0) {
+          sb.Append(baseType is null ? " : " : ", ").AppendJoin(", ", interfaces.Values);
+        }
       }
     }
     {
@@ -1554,8 +1755,8 @@ public class CSharpFormatter : CodeFormatter {
     var prefix = "";
     // ref X can only occur on outer types; can't have an array of `ref int` or a `Func<ref int>`, so handle that here
     if (tr is ByReferenceType brt) { // => ref T
-      // omit the "ref" for "out" parameters - it's covered by the "out"
-      if (context is not ParameterDefinition { IsOut: true }) {
+      // omit the "ref" for "in" or "out" parameters
+      if (context is ParameterDefinition { IsIn: false, IsOut: false }) {
         prefix = context.IsReadOnly ? "ref readonly " : "ref ";
       }
       tr = brt.ElementType;

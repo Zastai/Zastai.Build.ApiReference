@@ -12,8 +12,6 @@ public static partial class Constants {
 
   }
 
-#if NET8_0_OR_GREATER
-
   /// <summary>
   /// A regular expression representing a valid F# custom operator method name (not including the <c>op_</c> prefix or possible
   /// <c>$W</c> suffix).<br/>
@@ -113,117 +111,21 @@ public static partial class Constants {
   ///   </item>
   /// </list>
   /// </summary>
+
+#if NET8_0_OR_GREATER
+
   [GeneratedRegex(PatternText.FSharpCustomOperator)]
   public static partial Regex FSharpCustomOperatorPattern();
 
 #else
+
+  public static Regex FSharpCustomOperatorPattern() => RegexInstances.FSharpCustomOperator;
 
   private static class RegexInstances {
 
     public static readonly Regex FSharpCustomOperator = new(PatternText.FSharpCustomOperator);
 
   }
-
-  /// <summary>
-  /// A regular expression representing a valid F# custom operator method name (not including the <c>op_</c> prefix or possible
-  /// <c>$W</c> suffix).<br/>
-  /// This consists of one or more words representing the symbols F# allows in custom operators:
-  /// <list type="table">
-  ///   <listheader>
-  ///     <term>Symbol</term>
-  ///     <description>Word</description>
-  ///   </listheader>
-  ///   <item>
-  ///     <term>&amp;</term>
-  ///     <description>Amp</description>
-  ///   </item>
-  ///   <item>
-  ///     <term>@</term>
-  ///     <description>At</description>
-  ///   </item>
-  ///   <item>
-  ///     <term>!</term>
-  ///     <description>Bang</description>
-  ///   </item>
-  ///   <item>
-  ///     <term>|</term>
-  ///     <description>Bar</description>
-  ///   </item>
-  ///   <item>
-  ///     <term>,</term>
-  ///     <description>Comma</description>
-  ///   </item>
-  ///   <item>
-  ///     <term>/</term>
-  ///     <description>Divide</description>
-  ///   </item>
-  ///   <item>
-  ///     <term>$</term>
-  ///     <description>Dollar</description>
-  ///   </item>
-  ///   <item>
-  ///     <term>.</term>
-  ///     <description>Dot</description>
-  ///   </item>
-  ///   <item>
-  ///     <term>=</term>
-  ///     <description>Equals</description>
-  ///   </item>
-  ///   <item>
-  ///     <term>&gt;</term>
-  ///     <description>Greater</description>
-  ///   </item>
-  ///   <item>
-  ///     <term>^</term>
-  ///     <description>Hat</description>
-  ///   </item>
-  ///   <item>
-  ///     <term>[</term>
-  ///     <description>LBrack</description>
-  ///   </item>
-  ///   <item>
-  ///     <term>(</term>
-  ///     <description>LParen</description>
-  ///   </item>
-  ///   <item>
-  ///     <term>&lt;</term>
-  ///     <description>Less</description>
-  ///   </item>
-  ///   <item>
-  ///     <term>-</term>
-  ///     <description>Minus</description>
-  ///   </item>
-  ///   <item>
-  ///     <term>*</term>
-  ///     <description>Multiply</description>
-  ///   </item>
-  ///   <item>
-  ///     <term>%</term>
-  ///     <description>Percent</description>
-  ///   </item>
-  ///   <item>
-  ///     <term>+</term>
-  ///     <description>Plus</description>
-  ///   </item>
-  ///   <item>
-  ///     <term>?</term>
-  ///     <description>Qmark</description>
-  ///   </item>
-  ///   <item>
-  ///     <term>]</term>
-  ///     <description>RBrack</description>
-  ///   </item>
-  ///   <item>
-  ///     <term>)</term>
-  ///     <description>RParen</description>
-  ///   </item>
-  ///   <item>
-  ///     <term>~</term>
-  ///     <description>Twiddle</description>
-  ///   </item>
-  /// </list>
-  /// </summary>
-  public static Regex FSharpCustomOperatorPattern() => RegexInstances.FSharpCustomOperator;
 
 #endif
 

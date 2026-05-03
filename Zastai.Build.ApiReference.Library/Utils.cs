@@ -52,10 +52,8 @@ internal static class Utils {
       ++patternPosition;
       ++textPosition;
     }
-
   }
 
   public static ulong ToULong(this object value) => value is ulong u64 ? u64 : (ulong) Convert.ToInt64(value);
-
 
 }

@@ -155,8 +155,9 @@ public static class Program {
     formatter.IncludeExtensionBlocks = includeExtensionBlocks;
     formatter.IncludeInternals = includeInternals;
     try {
+      using var ad = AssemblyDefinition.ReadAssembly(assembly, Program.CreateReaderParameters(assembly, dependencyPath));
       using var reference = referenceSource == "-" ? Console.Out : new StreamWriter(File.Create(referenceSource), Encoding.UTF8);
-      foreach (var line in formatter.FormatPublicApi(assembly, Program.CreateReaderParameters(assembly, dependencyPath))) {
+      foreach (var line in formatter.FormatPublicApi(ad)) {
         if (line is null) {
           reference.WriteLine();
         }
