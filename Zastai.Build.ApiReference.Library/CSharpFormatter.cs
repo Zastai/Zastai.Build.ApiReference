@@ -117,6 +117,9 @@ public class CSharpFormatter : CodeFormatter {
       var isOverride = md is { IsReuseSlot: true, IsStatic: false } or { IsNewSlot: true, HasCovariantReturn: true };
       sb.Append(isOverride ? "override " : "virtual ");
     }
+    if (md.IsReadOnly) {
+      sb.Append("readonly ");
+    }
     return sb.ToString();
   }
 
@@ -844,7 +847,7 @@ public class CSharpFormatter : CodeFormatter {
         return "'\\a'";
       case '\b':
         return "'\\b'";
-      case '\u001f': // \e in C#13
+      case '\e':
         return "'\\e'";
       case '\f':
         return "'\\f'";
@@ -943,7 +946,7 @@ public class CSharpFormatter : CodeFormatter {
         case '\b':
           sb.Append("\\b");
           break;
-        case '\u001f': // \e in C#13
+        case '\e':
           sb.Append("\\e");
           break;
         case '\f':
@@ -1040,9 +1043,6 @@ public class CSharpFormatter : CodeFormatter {
       }
     }
     sb.Append(' ', indent).Append(this.Attributes(md));
-    if (md.IsReadOnly) {
-      sb.Append("readonly ");
-    }
     var methodName = this.MethodName(md, out var returnTypeName);
     if (returnTypeName.Length > 0) {
       sb.Append(returnTypeName).Append(' ');
@@ -1463,13 +1463,24 @@ public class CSharpFormatter : CodeFormatter {
   }
 
   /// <inheritdoc />
-  protected override IEnumerable<string?> Property(PropertyDefinition pd, int indent) {
+  protected override IEnumerable<string?> Property(PropertyDefinition pd, int indent, bool includeGetter, bool includeSetter) {
     foreach (var line in this.CustomAttributes(pd, indent)) {
       yield return line;
     }
+    var attributesOnAccessors = true;
+    var getter = includeGetter ? pd.GetMethod : null;
+    var setter = includeSetter ? pd.SetMethod : null;
     {
       var sb = new StringBuilder();
       sb.Append(' ', indent);
+      {
+        var getAttributes = getter is null ? null : this.Attributes(getter);
+        var setAttributes = setter is null ? null : this.Attributes(setter);
+        if (getAttributes is null || setAttributes is null || getAttributes == setAttributes) {
+          sb.Append(getAttributes ?? setAttributes);
+          attributesOnAccessors = false;
+        }
+      }
       if (pd.IsRequired) {
         sb.Append("required ");
       }
@@ -1478,15 +1489,19 @@ public class CSharpFormatter : CodeFormatter {
       sb.Append(this.Parameters(pd)).Append(" {");
       yield return sb.ToString();
     }
-    foreach (var line in this.PropertyAccessor(pd.GetMethod.IfPublicApi(), indent + 2)) {
-      yield return line;
+    if (getter is not null) {
+      foreach (var line in this.PropertyAccessor(getter, indent + 2, attributesOnAccessors)) {
+        yield return line;
+      }
     }
-    foreach (var line in this.PropertyAccessor(pd.SetMethod.IfPublicApi(), indent + 2)) {
-      yield return line;
+    if (setter is not null) {
+      foreach (var line in this.PropertyAccessor(setter, indent + 2, attributesOnAccessors)) {
+        yield return line;
+      }
     }
     if (pd.HasOtherMethods) {
       var sb = new StringBuilder();
-      sb.Append(' ', indent + 2).Append("// unsupported: \"other methods\"");
+      sb.Append(' ', indent + 2).Append($"// unsupported: \"other methods\" ({pd.OtherMethods.Count})");
       yield return sb.ToString();
     }
     {
@@ -1496,7 +1511,7 @@ public class CSharpFormatter : CodeFormatter {
     }
   }
 
-  private IEnumerable<string?> PropertyAccessor(MethodDefinition? method, int indent) {
+  private IEnumerable<string?> PropertyAccessor(MethodDefinition? method, int indent, bool includeAttributes) {
     if (method is null) {
       yield break;
     }
@@ -1504,9 +1519,9 @@ public class CSharpFormatter : CodeFormatter {
       yield return line;
     }
     var sb = new StringBuilder();
-    sb.Append(' ', indent).Append(this.Attributes(method));
-    if (method.IsReadOnly) {
-      sb.Append("readonly ");
+    sb.Append(' ', indent);
+    if (includeAttributes) {
+      sb.Append(this.Attributes(method));
     }
     if (method.IsGetter) {
       sb.Append("get");
