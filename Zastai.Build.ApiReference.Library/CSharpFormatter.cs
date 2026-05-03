@@ -655,54 +655,41 @@ public class CSharpFormatter : CodeFormatter {
   /// <summary>Determines whether a given type definition is for a C# record type.</summary>
   /// <param name="td">The type definition to check.</param>
   /// <returns><see langword="true"/> if it's a record type; <see langword="false"/> otherwise.</returns>
-  protected bool IsRecordType(TypeDefinition td) {
+  protected static bool IsRecordType(TypeDefinition td) {
     // Can't be an interface or an enum; can't be a static class.
     if (td.IsInterface || td.IsEnum || td is { IsSealed: true, IsAbstract: true }) {
       return false;
     }
-    // Must have implemented interfaces and methods. Properties and fields are not technically required.
-    if (!td.HasInterfaces || !td.HasMethods) {
+    // Must implement IEquatable<itself>.
+    if (!td.Implements("System", "IEquatable`1", td)) {
       return false;
-    }
-    { // Must implement IEquatable<itself>.
-      var found = false;
-      foreach (var implemented in td.Interfaces.Select(ii => ii.InterfaceType).OfType<GenericInstanceType>()) {
-        if (!implemented.ElementType.IsCoreLibraryType("System", "IEquatable`1")) {
-          continue;
-        }
-        if (implemented.HasGenericArguments && implemented.GenericArguments.Count == 1 && implemented.GenericArguments[0] == td) {
-          found = true;
-          break;
-        }
-      }
-      if (!found) {
-        return false;
-      }
     }
     var ts = td.Module.TypeSystem;
     { // Check for compiler-generated == and != operators.
       var eq = false;
       var neq = false;
-      var ops = td.Methods.Where(md => md is {
-        IsCompilerGenerated: true,
-        IsSpecialName: true,
-        IsStatic: true,
-        Name: "op_Equality" or "op_Inequality",
-        HasParameters: true,
-        Parameters.Count: 2,
-      });
-      foreach (var op in ops) {
-        if (op.ReturnType != ts.Boolean) {
-          continue;
-        }
-        if (op.Parameters[0].ParameterType != td || op.Parameters[1].ParameterType != td) {
-          continue;
-        }
-        if (op.Name is "op_Equality") {
-          eq = true;
-        }
-        else {
-          neq = true;
+      if (td.HasMethods) {
+        var ops = td.Methods.Where(md => md is {
+          IsCompilerGenerated: true,
+          IsSpecialName: true,
+          IsStatic: true,
+          Name: "op_Equality" or "op_Inequality",
+          HasParameters: true,
+          Parameters.Count: 2,
+        });
+        foreach (var op in ops) {
+          if (op.ReturnType != ts.Boolean) {
+            continue;
+          }
+          if (op.Parameters[0].ParameterType != td || op.Parameters[1].ParameterType != td) {
+            continue;
+          }
+          if (op.Name is "op_Equality") {
+            eq = true;
+          }
+          else {
+            neq = true;
+          }
         }
       }
       if (!eq || !neq) {
@@ -791,9 +778,50 @@ public class CSharpFormatter : CodeFormatter {
   /// <summary>Determines whether a given type definition is for a C# union type.</summary>
   /// <param name="td">The type definition to check.</param>
   /// <returns><see langword="true"/> if it's a union type; <see langword="false"/> otherwise.</returns>
-  protected bool IsUnionType(TypeDefinition td) {
-    // TODO
-    return false;
+  protected static bool IsUnionType(TypeDefinition td) {
+    // Automatic unions seem to always be structs. [Union] is required.
+    if (!td.IsValueType || !td.BaseType.IsCoreLibraryType("System", "ValueType") || !td.IsMarkedAsUnion) {
+      return false;
+    }
+    // They must implement IUnion.
+    if (!td.HasInterfaces || !td.Implements("System.Runtime.CompilerServices", "IUnion")) {
+      return false;
+    }
+    { // They must have a public get-only Value property of type object.
+      var found = false;
+      if (td.HasProperties) {
+        var ts = td.Module.TypeSystem;
+        foreach (var prop in td.Properties) {
+          if (prop is not { Name: "Value", GetMethod: { IsPublic: true }, SetMethod: null, HasOtherMethods: false }) {
+            continue;
+          }
+          if (prop.PropertyType == ts.Object) {
+            found = true;
+            break;
+          }
+        }
+      }
+      if (!found) {
+        return false;
+      }
+    }
+    // All single-argument constructors, of which there must be at least one, must be public and compiler-generated.
+    {
+      var validConstructors = 0;
+      if (td.HasMethods) {
+        foreach (var ctor in td.Methods.Where(md => md is { IsConstructor: true, Name: ".ctor", HasParameters: true })) {
+          if (ctor.Parameters.Count == 1) {
+            if (ctor is { IsPublic: true, IsCompilerGenerated: true }) {
+              ++validConstructors;
+            }
+            else {
+              return false;
+            }
+          }
+        }
+      }
+      return validConstructors > 0;
+    }
   }
 
   /// <inheritdoc />
@@ -1372,189 +1400,6 @@ public class CSharpFormatter : CodeFormatter {
     yield return $"namespace {this.CurrentNamespace};";
   }
 
-  /// <summary>Formats a "normal" C# type (i.e. not a record or union type).</summary>
-  /// <param name="td">The type definition.</param>
-  /// <param name="indent">The number of spaces of indentation to use.</param>
-  /// <returns>The formatted type.</returns>
-  protected IEnumerable<string?> NormalType(TypeDefinition td, int indent) {
-    foreach (var line in this.CustomAttributes(td, indent)) {
-      yield return line;
-    }
-    var sb = new StringBuilder();
-    // This IL flag is written as an attribute in C# code. Do the same.
-    if (td.IsSerializable) {
-      sb.Append(' ', indent).Append('[').Append(typeof(SerializableAttribute).FullName).Append(']');
-      yield return sb.ToString();
-      sb.Clear();
-    }
-    sb.Append(' ', indent);
-    if (td.IsPublic || td.IsNestedPublic) {
-      sb.Append("public ");
-    }
-    else if (td.IsNestedAssembly || td.IsNotPublic) {
-      sb.Append("internal ");
-    }
-    else if (td.IsNestedFamily) {
-      sb.Append("protected ");
-    }
-    else if (td.IsNestedFamilyAndAssembly) {
-      sb.Append("private protected ");
-    }
-    else if (td.IsNestedFamilyOrAssembly) {
-      sb.Append("protected ");
-      if (this.IncludeInternals) {
-        sb.Append("internal ");
-      }
-    }
-    else {
-      sb.Append("/* unexpected accessibility */ ");
-    }
-    if (td.IsDelegate(out var invoke)) {
-      sb.Append("delegate ");
-      this.MethodName(invoke, out var returnTypeName);
-      if (returnTypeName.Length > 0) {
-        sb.Append(returnTypeName).Append(' ');
-      }
-      sb.Append(this.TypeName(td)).Append(this.Parameters(invoke));
-      var constraints = this.GenericParameterConstraints(td, indent + 2).ToList();
-      if (constraints.Count == 0) {
-        sb.Append(';');
-      }
-      else {
-        constraints[constraints.Count - 1] += ';';
-      }
-      yield return sb.ToString();
-      sb.Clear();
-      foreach (var constraint in constraints) {
-        yield return constraint;
-      }
-      yield break;
-    }
-    if (td is { IsClass: true, IsAbstract: true, IsSealed: true }) {
-      sb.Append("static ");
-    }
-    else if (td is { IsAbstract: true, IsInterface: false }) {
-      sb.Append("abstract ");
-    }
-    else if (td is { IsSealed: true, IsValueType: false }) {
-      sb.Append("sealed ");
-    }
-    var recordType = this.IsRecordType(td);
-    if (recordType) {
-      sb.Append("record");
-      if (td.IsValueType) {
-        sb.Append(" struct");
-      }
-    }
-    else if (td.IsEnum) {
-      sb.Append("enum");
-    }
-    else if (td.IsInterface) {
-      sb.Append("interface");
-    }
-    else if (td.IsValueType) {
-      if (td.IsReadOnly) {
-        sb.Append("readonly ");
-      }
-      if (td.IsByRefLike) {
-        sb.Append("ref ");
-      }
-      sb.Append("struct");
-    }
-    else if (td.IsClass) {
-      // TODO: Maybe detect delegates; but then what of explicitly written classes deriving from MultiCastDelegate?
-      sb.Append("class");
-    }
-    else { // What else can it be?
-      sb.Append($"/* type with unsupported classification: {td.Attributes} */");
-    }
-    // Note: The definition is NOT passed as context here (otherwise [NullableContext(2)] causes "public class Foo?").
-    sb.Append(' ').Append(this.TypeName(td));
-    {
-      var baseType = td.BaseType;
-      if (baseType is not null) {
-        if (td.IsClass && baseType.IsCoreLibraryType("System", "Object")) {
-          baseType = null;
-        }
-        else if (td.IsEnum && baseType.IsCoreLibraryType("System", "Enum")) {
-          baseType = null;
-        }
-        else if (td.IsValueType && baseType.IsNamed("System", "ValueType")) {
-          baseType = null;
-        }
-      }
-      // For an enum, look for the special-named 'value__' field and use its type as the base type.
-      if (baseType is null && td is { IsEnum: true, HasFields: true }) {
-        foreach (var fd in td.Fields) {
-          if (fd.IsSpecialName && fd.Name == "value__") {
-            // If it's Int32, leave it off
-            if (fd.FieldType != fd.Module.TypeSystem.Int32) {
-              baseType = fd.FieldType;
-            }
-            break;
-          }
-        }
-      }
-      if (baseType is not null) {
-        // FIXME: Does this need a context?
-        sb.Append(" : ").Append(this.TypeName(baseType, td));
-      }
-      if (td.HasInterfaces) {
-        // Ensure these are emitted sorted
-        var interfaces = new SortedDictionary<string, string>();
-        foreach (var implementation in td.Interfaces) {
-          var it = implementation.InterfaceType;
-          // Don't emit IEquatable<this type> for records.
-          if (recordType && it.IsCoreLibraryType("System", "IEquatable`1") && it is GenericInstanceType git) {
-            if (git.HasGenericArguments && git.GenericArguments.Count == 1 && git.GenericArguments[0] == td) {
-              continue;
-            }
-          }
-          var type = this.TypeName(it, implementation, typeContext: td);
-          interfaces.Add(type, this.CustomAttributesInline(implementation) + type);
-        }
-        if (interfaces.Count > 0) {
-          sb.Append(baseType is null ? " : " : ", ").AppendJoin(", ", interfaces.Values);
-        }
-      }
-    }
-    {
-      var constraints = this.GenericParameterConstraints(td, indent + 2).ToList();
-      if (constraints.Count == 0) {
-        sb.Append(" {");
-      }
-      else {
-        constraints[constraints.Count - 1] += " {";
-      }
-      yield return sb.ToString();
-      sb.Clear();
-      foreach (var constraint in constraints) {
-        yield return constraint;
-      }
-    }
-    foreach (var line in this.Fields(td, indent + 2)) {
-      yield return line;
-    }
-    foreach (var line in this.Properties(td, indent + 2)) {
-      yield return line;
-    }
-    foreach (var line in this.Events(td, indent + 2)) {
-      yield return line;
-    }
-    foreach (var line in this.Methods(td, indent + 2)) {
-      yield return line;
-    }
-    foreach (var line in this.ExtensionBlocks(td, indent + 2)) {
-      yield return line;
-    }
-    foreach (var line in this.NestedTypes(td, indent + 2)) {
-      yield return line;
-    }
-    yield return null;
-    sb.Append(' ', indent).Append('}');
-    yield return sb.ToString();
-  }
-
   /// <inheritdoc />
   protected override string Null() => "null";
 
@@ -1688,10 +1533,201 @@ public class CSharpFormatter : CodeFormatter {
 
   /// <inheritdoc />
   protected override IEnumerable<string?> Type(TypeDefinition td, int indent) {
-    if (this.IsUnionType(td)) {
-      return this.UnionType(td, indent);
+    foreach (var line in this.CustomAttributes(td, indent)) {
+      yield return line;
     }
-    return this.NormalType(td, indent);
+    var sb = new StringBuilder();
+    // This IL flag is written as an attribute in C# code. Do the same.
+    if (td.IsSerializable) {
+      sb.Append(' ', indent).Append('[').Append(typeof(SerializableAttribute).FullName).Append(']');
+      yield return sb.ToString();
+      sb.Clear();
+    }
+    sb.Append(' ', indent);
+    if (td.IsPublic || td.IsNestedPublic) {
+      sb.Append("public ");
+    }
+    else if (td.IsNestedAssembly || td.IsNotPublic) {
+      sb.Append("internal ");
+    }
+    else if (td.IsNestedFamily) {
+      sb.Append("protected ");
+    }
+    else if (td.IsNestedFamilyAndAssembly) {
+      sb.Append("private protected ");
+    }
+    else if (td.IsNestedFamilyOrAssembly) {
+      sb.Append("protected ");
+      if (this.IncludeInternals) {
+        sb.Append("internal ");
+      }
+    }
+    else {
+      sb.Append("/* unexpected accessibility */ ");
+    }
+    if (td.IsDelegate(out var invoke)) {
+      sb.Append("delegate ");
+      this.MethodName(invoke, out var returnTypeName);
+      if (returnTypeName.Length > 0) {
+        sb.Append(returnTypeName).Append(' ');
+      }
+      sb.Append(this.TypeName(td)).Append(this.Parameters(invoke));
+      var constraints = this.GenericParameterConstraints(td, indent + 2).ToList();
+      if (constraints.Count == 0) {
+        sb.Append(';');
+      }
+      else {
+        constraints[constraints.Count - 1] += ';';
+      }
+      yield return sb.ToString();
+      sb.Clear();
+      foreach (var constraint in constraints) {
+        yield return constraint;
+      }
+      yield break;
+    }
+    if (td is { IsClass: true, IsAbstract: true, IsSealed: true }) {
+      sb.Append("static ");
+    }
+    else if (td is { IsAbstract: true, IsInterface: false }) {
+      sb.Append("abstract ");
+    }
+    else if (td is { IsSealed: true, IsValueType: false }) {
+      sb.Append("sealed ");
+    }
+    var unionType = CSharpFormatter.IsUnionType(td);
+    // The record check is relatively expensive, so avoid doing it if we've already detected a union.
+    var recordType = !unionType && CSharpFormatter.IsRecordType(td);
+    if (recordType) {
+      sb.Append("record");
+      if (td.IsValueType) {
+        sb.Append(" struct");
+      }
+    }
+    else if (unionType) {
+      sb.Append("union");
+    }
+    else if (td.IsEnum) {
+      sb.Append("enum");
+    }
+    else if (td.IsInterface) {
+      sb.Append("interface");
+    }
+    else if (td.IsValueType) {
+      if (td.IsReadOnly) {
+        sb.Append("readonly ");
+      }
+      if (td.IsByRefLike) {
+        sb.Append("ref ");
+      }
+      sb.Append("struct");
+    }
+    else if (td.IsClass) {
+      // TODO: Maybe detect delegates; but then what of explicitly written classes deriving from MultiCastDelegate?
+      sb.Append("class");
+    }
+    else { // What else can it be?
+      sb.Append($"/* type with unsupported classification: {td.Attributes} */");
+    }
+    // Note: The definition is NOT passed as context here (otherwise [NullableContext(2)] causes "public class Foo?").
+    sb.Append(' ').Append(this.TypeName(td));
+    if (unionType) {
+      var types = new List<string>();
+      foreach (var ctor in td.Methods.Where(md => md is { IsConstructor: true, Name: ".ctor", HasParameters: true })) {
+        if (ctor.Parameters.Count == 1) {
+          var param = ctor.Parameters[0];
+          types.Add(this.TypeName(param.ParameterType, param));
+        }
+      }
+      sb.Append('(').AppendJoin(", ", types).Append(')');
+    }
+    {
+      var baseType = td.BaseType;
+      if (baseType is not null) {
+        if (td.IsClass && baseType.IsCoreLibraryType("System", "Object")) {
+          baseType = null;
+        }
+        else if (td.IsEnum && baseType.IsCoreLibraryType("System", "Enum")) {
+          baseType = null;
+        }
+        else if (td.IsValueType && baseType.IsNamed("System", "ValueType")) {
+          baseType = null;
+        }
+      }
+      // For an enum, look for the special-named 'value__' field and use its type as the base type.
+      if (baseType is null && td is { IsEnum: true, HasFields: true }) {
+        foreach (var fd in td.Fields) {
+          if (fd.IsSpecialName && fd.Name == "value__") {
+            // If it's Int32, leave it off
+            if (fd.FieldType != fd.Module.TypeSystem.Int32) {
+              baseType = fd.FieldType;
+            }
+            break;
+          }
+        }
+      }
+      if (baseType is not null) {
+        // FIXME: Does this need a context?
+        sb.Append(" : ").Append(this.TypeName(baseType, td));
+      }
+      if (td.HasInterfaces) {
+        // Ensure these are emitted sorted
+        var interfaces = new SortedDictionary<string, string>();
+        foreach (var implementation in td.Interfaces) {
+          var it = implementation.InterfaceType;
+          // Don't emit IEquatable<this type> for records.
+          if (recordType && it.IsCoreLibraryType("System", "IEquatable`1") && it is GenericInstanceType git) {
+            if (git.HasGenericArguments && git.GenericArguments.Count == 1 && git.GenericArguments[0] == td) {
+              continue;
+            }
+          }
+          // Don't emit IUnion for unions.
+          if (unionType && it.IsNamed("System.Runtime.CompilerServices", "IUnion") && !it.HasGenericParameters) {
+            continue;
+          }
+          var type = this.TypeName(it, implementation, typeContext: td);
+          interfaces.Add(type, this.CustomAttributesInline(implementation) + type);
+        }
+        if (interfaces.Count > 0) {
+          sb.Append(baseType is null ? " : " : ", ").AppendJoin(", ", interfaces.Values);
+        }
+      }
+    }
+    {
+      var constraints = this.GenericParameterConstraints(td, indent + 2).ToList();
+      if (constraints.Count == 0) {
+        sb.Append(" {");
+      }
+      else {
+        constraints[constraints.Count - 1] += " {";
+      }
+      yield return sb.ToString();
+      sb.Clear();
+      foreach (var constraint in constraints) {
+        yield return constraint;
+      }
+    }
+    foreach (var line in this.Fields(td, indent + 2)) {
+      yield return line;
+    }
+    foreach (var line in this.Properties(td, indent + 2)) {
+      yield return line;
+    }
+    foreach (var line in this.Events(td, indent + 2)) {
+      yield return line;
+    }
+    foreach (var line in this.Methods(td, indent + 2)) {
+      yield return line;
+    }
+    foreach (var line in this.ExtensionBlocks(td, indent + 2)) {
+      yield return line;
+    }
+    foreach (var line in this.NestedTypes(td, indent + 2)) {
+      yield return line;
+    }
+    yield return null;
+    sb.Append(' ', indent).Append('}');
+    yield return sb.ToString();
   }
 
   /// <summary>Formats the type name for an exported type.</summary>
@@ -2037,17 +2073,6 @@ public class CSharpFormatter : CodeFormatter {
   protected override string TypeOf(TypeReference tr) {
     // FIXME: Does this need a context?
     return $"typeof({this.TypeName(tr)})";
-  }
-
-  /// <summary>Formats a C# union type.</summary>
-  /// <param name="td">The union type definition.</param>
-  /// <param name="indent">The number of spaces of indentation to use.</param>
-  /// <returns>The formatted union type.</returns>
-  protected IEnumerable<string?> UnionType(TypeDefinition td, int indent) {
-    yield return $"// TODO: Handle union type: {td}";
-    foreach (var line in this.NormalType(td, indent)) {
-      yield return line;
-    }
   }
 
 }

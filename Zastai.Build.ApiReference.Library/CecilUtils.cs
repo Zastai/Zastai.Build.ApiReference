@@ -295,6 +295,32 @@ internal static class CecilUtils {
       return null;
     }
 
+    public bool Implements(string ns, string name) {
+      if (td is null || !td.HasInterfaces) {
+        return false;
+      }
+      return td.Interfaces.Select(ii => ii.InterfaceType)
+               .Any(t => t.IsNamed(ns, name) && !t.HasGenericParameters && t is not GenericInstanceType);
+    }
+
+    public bool Implements(string ns, string name, params IReadOnlyList<TypeReference> typeArguments) {
+      if (td is null || !td.HasInterfaces) {
+        return false;
+      }
+      foreach (var it in td.Interfaces.Select(ii => ii.InterfaceType).Where(it => it.IsNamed(ns, name))) {
+        if (it.HasGenericParameters || it is not GenericInstanceType git) {
+          continue;
+        }
+        if (!git.HasGenericArguments || git.GenericArguments.Count != typeArguments.Count) {
+          continue;
+        }
+        if (git.GenericArguments.SequenceEqual(typeArguments)) {
+          return true;
+        }
+      }
+      return false;
+    }
+
     public bool IsByRefLike => td.HasAttribute("System.Runtime.CompilerServices", "IsByRefLikeAttribute");
 
     public bool IsDelegate([NotNullWhen(true)] out MethodDefinition? invoke) {
@@ -329,6 +355,8 @@ internal static class CecilUtils {
     public bool IsExtensionBlock => td is { IsSpecialName: true, IsMarkedAsExtension: true } && td.Name.StartsWith("<G>");
 
     public bool IsInternalApi => td is not null && (td.IsNestedAssembly || td.IsNestedFamilyAndAssembly);
+
+    public bool IsMarkedAsUnion => td.HasAttribute("System.Runtime.CompilerServices", "UnionAttribute");
 
     public bool IsPublicApi
       => td is not null && (td.IsPublic || td.IsNestedPublic || td.IsNestedFamily || td.IsNestedFamilyOrAssembly);
