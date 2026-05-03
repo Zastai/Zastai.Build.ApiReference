@@ -265,8 +265,6 @@ internal static class CecilUtils {
 
     public bool HasCovariantReturn => md.HasAttribute("System.Runtime.CompilerServices", "PreserveBaseOverridesAttribute");
 
-    public MethodDefinition? IfPublicApi() => md.IsPublicApi ? md : null;
-
     public bool IsInternalApi => md is not null && (md.IsAssembly || md.IsFamilyAndAssembly);
 
     public bool IsPublicApi => md is not null && (md.IsPublic || md.IsFamily || md.IsFamilyOrAssembly);

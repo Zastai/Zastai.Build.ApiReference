@@ -813,8 +813,12 @@ public abstract partial class CodeFormatter {
     }
     var parametrizedProperties = new SortedDictionary<string, SortedSet<PropertyDefinition>>();
     var properties = new SortedSet<PropertyDefinition>(this);
+    var propertiesWithGetter = new HashSet<PropertyDefinition>();
+    var propertiesWithSetter = new HashSet<PropertyDefinition>();
     foreach (var property in td.Properties) {
-      if (!this.ShouldInclude(property.GetMethod) && !this.ShouldInclude(property.SetMethod)) {
+      var includeGetter = this.ShouldInclude(property.GetMethod);
+      var includeSetter = this.ShouldInclude(property.SetMethod);
+      if (!includeGetter && !includeSetter) {
         continue;
       }
       if (property.IsCompilerGenerated) {
@@ -837,18 +841,24 @@ public abstract partial class CodeFormatter {
         }
         properties.Add(property);
       }
+      if (includeGetter) {
+        propertiesWithGetter.Add(property);
+      }
+      if (includeSetter) {
+        propertiesWithSetter.Add(property);
+      }
     }
     foreach (var overloads in parametrizedProperties.Values) {
       foreach (var pd in overloads) {
         yield return null;
-        foreach (var line in this.Property(pd, indent)) {
+        foreach (var line in this.Property(pd, indent, propertiesWithGetter.Contains(pd), propertiesWithSetter.Contains(pd))) {
           yield return line;
         }
       }
     }
     foreach (var pd in properties) {
       yield return null;
-      foreach (var line in this.Property(pd, indent)) {
+      foreach (var line in this.Property(pd, indent, propertiesWithGetter.Contains(pd), propertiesWithSetter.Contains(pd))) {
         yield return line;
       }
     }
@@ -857,8 +867,10 @@ public abstract partial class CodeFormatter {
   /// <summary>Formats a property.</summary>
   /// <param name="pd">The property to format.</param>
   /// <param name="indent">The number of spaces of indentation to use.</param>
+  /// <param name="includeGetter">Indicates whether the property's getter should be included.</param>
+  /// <param name="includeSetter">Indicates whether the property's setter should be included.</param>
   /// <returns>The formatted property (including any attributes attached to it).</returns>
-  protected abstract IEnumerable<string?> Property(PropertyDefinition pd, int indent);
+  protected abstract IEnumerable<string?> Property(PropertyDefinition pd, int indent, bool includeGetter, bool includeSetter);
 
   /// <summary>Formats the name of a property.</summary>
   /// <param name="pd">The property.</param>
