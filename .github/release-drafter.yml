@@ -8,41 +8,55 @@ template: |
 
 # Emoji reference: https://gitmoji.carloscuesta.me/
 categories:
+  # Exclusions
+  - type: pre-exclude
+    when:
+      labels:
+        - duplicate
+        - invalid
+        - no-changelog
+        - reverted
+  # Version Resolution
+  - type: version-resolver
+    semver-increment: major
+    when:
+      labels:
+        - breaking
+        - removed
+        - bump-major-version
+  - type: version-resolver
+    semver-increment: minor
+    when:
+      labels:
+        - feature
+        - bump-minor-version
+  # Named Categories
   - title: 💥 Breaking Changes
-    label: breaking
+    when:
+      label: breaking
   - title: 🚨 Removed
-    label: removed
+    when:
+      label: removed
   - title: ⚠️ Deprecated
-    label: deprecated
+    when:
+      label: deprecated
   - title: 🚀 New Features and Improvements
-    labels:
-      - enhancement
-      - feature
+    when:
+      labels:
+        - enhancement
+        - feature
   - title: 🐛 Bug Fixes
-    label: fix
+    when:
+      label: fix
   - title: 📦 Dependency Updates
-    label: dependencies # Used by Dependabot
+    when:
+      label: dependencies # Used by Dependabot
   - title: 📝 Documentation Updates
-    label: documentation
+    when:
+      label: documentation
   - title: 👻 Maintenance
-    label: maintenance
+    when:
+      label: maintenance
   - title: 🚦 Tests
-    label: tests
-
-exclude-labels:
-  - duplicate
-  - invalid
-  - no-changelog
-  - reverted
-
-version-resolver:
-  major:
-    labels:
-      - breaking
-      - removed
-      - bump-major-version
-  minor:
-    labels:
-      - feature
-      - bump-minor-version
-  default: patch
+    when:
+      label: tests
