@@ -10,7 +10,7 @@ are easy to detect and track.
 ## Configuration - Properties
 
 The following properties can be set in the project to affect the
-behaviour:
+behavior:
 
 ### ApiReferenceFormat
 
