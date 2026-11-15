@@ -15,13 +15,13 @@ The main usage pattern is:
   reference source lines, which you are then free to send wherever you
   like.
 
-Note that formatters are _not_ currently thread-safe; only one
+Note that formatters currently are _not_ thread-safe; only one
 `FormatPublicApi()` call should be running at any one time. Note that
 this includes the streaming processing triggered by enumerating its
-result, so if you want to do multiple calls before processing the
-results, you will need to either use multiple instances, or use
-something like `ToList()` to make sure all processing is completed
-before the next call.
+result; if you want to do multiple calls before processing the results,
+you will need to either use multiple instances, or use something like
+`ToList()` to make sure all processing is completed before the next
+call.
 
 ## Implementing Other Output Languages
 
