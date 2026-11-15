@@ -26,12 +26,12 @@
     <PlatformTarget>AnyCPU</PlatformTarget>
   </PropertyGroup>
 
-  <PropertyGroup>
+  <PropertyGroup Condition=" '$(IsPackable)' != 'False' ">
     <_ReadMeFile>README.md</_ReadMeFile>
     <_ReadMeFile Condition=" !Exists('$(_ReadMeFile)') ">$(MSBuildThisFileDirectory)\README.md</_ReadMeFile>
   </PropertyGroup>
 
-  <ItemGroup>
+  <ItemGroup Condition=" '$(IsPackable)' != 'False' ">
     <None Pack="true" PackagePath="" Include="$(MSBuildThisFileDirectory)\LICENSE.md"/>
     <None Pack="true" PackagePath="" Include="$(MSBuildThisFileDirectory)\package-icon.png"/>
     <None Pack="true" PackagePath="" Include="$(_ReadMeFile)"/>
